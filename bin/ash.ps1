@@ -305,25 +305,30 @@ function Invoke-Status {
 }
 
 function Invoke-Sync {
-    Write-LogInfo "正在同步技能库..."
+    Write-LogInfo "正在检查更新方式..."
     
-    # 1. 检查项目目录
+    # 1. 检查项目目录是否为 Git 仓库
     $gitDir = Join-Path $PROJECT_ROOT ".git"
     if (Test-Path $gitDir) {
-        Write-LogInfo "正在从远程仓库拉取更新..."
-        Set-Location $PROJECT_ROOT
-        git pull origin main
-        Set-Location $SKILLS_HUB_HOME # Back to home
-
-        # 2. 同步到全局目录
-        Write-LogInfo "正在同步到全局主目录 ($SKILLS_DIR)..."
-        $localSkills = Join-Path $PROJECT_ROOT "skills"
-        Copy-Item -Path "$localSkills\*" -Destination $SKILLS_DIR -Recurse -Force
+        Write-LogInfo "检测到 Git 仓库，正在从远程拉取更新..."
+        Push-Location $PROJECT_ROOT
+        try {
+            git pull origin main
+            if ($LASTEXITCODE -eq 0) {
+                 Write-LogSuccess "Git 同步完成。"
+            }
+        } finally {
+            Pop-Location
+        }
+        
+        # 2. 同步到全局目录 (可选，如果用户希望手动覆盖，通常 git pull 更新了源文件，install 会用新的)
+        # Write-LogInfo "正在同步到全局主目录 ($SKILLS_DIR)..."
+        # $localSkills = Join-Path $PROJECT_ROOT "skills"
+        # Copy-Item -Path "$localSkills\*" -Destination $SKILLS_DIR -Recurse -Force
     } else {
-        Write-LogWarn "未在项目根目录运行，将跳过本地仓库同步。"
+        Write-LogWarn "当前是通过 NPM 或直接下载安装的，无法通过 Git 同步。"
+        Write-Host "💡 请使用 NPM 更新: npm update -g awesome-skills-hub" -ForegroundColor Cyan
     }
-    
-    Write-LogSuccess "同步完成！您可以运行 'ash list' 查看最新技能。"
 }
 
 function Invoke-Init {

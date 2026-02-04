@@ -778,9 +778,23 @@ case "$1" in
         cmd_uninstall "$@"
         ;;
     sync)
-        log_info "正在同步技能仓库..."
-        git -C "$PROJECT_ROOT" pull
-        log_success "同步完成。"
+        log_info "正在检查更新方式..."
+        if [ -d "$PROJECT_ROOT/.git" ]; then
+            log_info "检测到 Git 仓库，正在拉取最新代码..."
+            git -C "$PROJECT_ROOT" pull
+            if [ $? -eq 0 ]; then
+                log_success "Git 同步完成。"
+                # Still need to copy new skills to ~/.ash/skills if they are different?
+                # For git clone users, usually they symlink or use directly.
+                # But for consistency, let's suggest re-install or just leave it.
+            else
+                log_error "Git 拉取失败。"
+            fi
+        else
+            log_warn "当前是通过 NPM 或直接下载安装的，无法通过 Git 同步。"
+            echo -e "💡 请使用 NPM 更新: ${CYAN}npm update -g awesome-skills-hub${NC}"
+            # npm update -g awesome-skills-hub # Optional: try to auto-update? No, permissions issues.
+        fi
         ;;
     -v|--version)
         show_version
