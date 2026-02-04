@@ -1,0 +1,7 @@
+.DS_Store
+*.log
+.agent/
+.idea/
+.vscode/
+tmp/
+*.swp
