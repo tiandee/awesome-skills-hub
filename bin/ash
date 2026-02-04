@@ -27,16 +27,30 @@ SKILLS_DIR="$ASH_HOME/skills"
 
 # Check if global skills exist. If not, initialize them from the package (First Run Logic)
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Debug path resolution
+# echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
+# echo "DEBUG: PROJECT_ROOT=$PROJECT_ROOT"
+
 if [ ! -d "$SKILLS_DIR" ]; then
     LOCAL_SKILLS="$PROJECT_ROOT/skills"
+    
+    # Check if we can find the skills package
     if [ -d "$LOCAL_SKILLS" ]; then
         log_info "首次运行，正在初始化全局环境 (~/.ash)..."
+        log_info "从 $LOCAL_SKILLS 复制技能..."
+        
         mkdir -p "$ASH_HOME"
         cp -r "$LOCAL_SKILLS" "$SKILLS_DIR"
-        log_success "初始化完成！"
+        
+        if [ -d "$SKILLS_DIR" ]; then
+            log_success "初始化完成！"
+        else
+            log_error "初始化失败：复制操作未能创建目标目录。"
+        fi
     else
-        # Debugging aid
-        # log_warn "未能在安装包内找到 skills 目录: $LOCAL_SKILLS"
+        # Critical Debug Logic: why can't we find the skills?
+        # log_warn "DEBUG: 未在安装包内找到 skills 目录: $LOCAL_SKILLS"
+        # ls -F "$PROJECT_ROOT" # Try to see what IS there
         :
     fi
 fi
