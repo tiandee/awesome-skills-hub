@@ -35,12 +35,19 @@ ash init
 
 ## 📖 使用手册
 
-### 1. 列出可用技能
-查看仓库中内置的技能。
+### 1. 浏览技能库
+查看来自 Anthropic 官方的实用技能（已按功能自动分类）：
 
 ```bash
 ash list
 ```
+
+**内置分类包括：**
+- `productivity/` (pdf, xlsx, docx, pptx 等)
+- `creative/` (algorithmic-art, canvas-design 等)
+- `development/` (mcp-builder, webapp-testing 等)
+- `frontend/` (frontend-design 等)
+- `business/` (brand-guidelines, internal-comms 等)
 
 ### 2. 搜索技能
 使用关键词快速查找。
@@ -53,7 +60,7 @@ ash search expert
 将技能安装（链接）到所有检测到的 IDE。
 
 ```bash
-ash install java/expert.md
+ash install productivity/pdf.md
 ```
 
 ### 4. 查看状态

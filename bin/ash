@@ -34,8 +34,31 @@ CLAUDE_SKILLS_DIR="$HOME_DIR/.claude/skills"     # Claude Code
 TRAE_CN_SKILLS_DIR="$HOME_DIR/.trae-cn/skills"   # Trae Chinese Version
 
 # ------------------------------------------------------------------------------
-# 帮助函数
+# 辅助函数: 提取技能描述 (支持 YAML 和 Markdown)
 # ------------------------------------------------------------------------------
+extract_description() {
+    local file="$1"
+    if [ ! -f "$file" ]; then return; fi
+    
+    # 检查是否包含 YAML 前置元数据
+    if [ "$(head -n 1 "$file" 2>/dev/null)" == "---" ]; then
+        # 从 YAML 中提取 description 或 name
+        local desc=$(sed -n '/^description:/p' "$file" | head -n 1 | sed 's/^description:\s*//' | sed 's/^["\x27]//;s/["\x27]$//')
+        if [ -n "$desc" ]; then
+            echo "$desc"
+            return
+        fi
+        local name=$(sed -n '/^name:/p' "$file" | head -n 1 | sed 's/^name:\s*//' | sed 's/^["\x27]//;s/["\x27]$//')
+        if [ -n "$name" ]; then
+            echo "$name"
+            return
+        fi
+    fi
+    
+    # 传统的 Markdown 标题
+    head -n 5 "$file" | grep "^# " | head -n 1 | sed 's/^#\s*//'
+}
+
 log_info() { echo -e "${BLUE}[信息]${NC} $1"; }
 log_success() { echo -e "${GREEN}[成功]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
@@ -141,8 +164,7 @@ cmd_list() {
     local count=0
     while IFS= read -r file; do
         rel_path="${file#$SKILLS_DIR/}"
-        # 尝试获取第一行作为描述
-        first_line=$(head -n 1 "$file" 2>/dev/null | sed 's/^#\s*//')
+        first_line=$(extract_description "$file")
         if [ -n "$first_line" ]; then
             echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
             echo -e "    $first_line"
@@ -172,8 +194,8 @@ cmd_search() {
     local count=0
     while IFS= read -r file; do
         rel_path="${file#$SKILLS_DIR/}"
-        # 获取第一行描述
-        first_line=$(head -n 1 "$file" 2>/dev/null | sed 's/^#\s*//')
+        # 获取描述
+        first_line=$(extract_description "$file")
         
         # 在路径或描述中搜索 (不区分大小写)
         if echo "$rel_path $first_line" | grep -iq "$keyword"; then
