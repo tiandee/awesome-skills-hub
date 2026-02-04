@@ -97,7 +97,48 @@ show_help() {
     echo "  ash status                    # 查看已安装技能"
     echo "  ash uninstall expert          # 卸载指定技能"
     echo "  ash uninstall --all           # 卸载所有已安装技能"
-    echo ""
+}
+
+# ------------------------------------------------------------------------------
+# 辅助函数: 智能解析技能路径
+# ------------------------------------------------------------------------------
+resolve_skill_path() {
+    local input="$1"
+    
+    # 1. 尝试直接匹配 (带或不带 .md)
+    local direct_path="$SKILLS_DIR/$input"
+    if [ -f "$direct_path" ]; then
+        echo "$direct_path"
+        return 0
+    fi
+    if [ -f "${direct_path}.md" ]; then
+        echo "${direct_path}.md"
+        return 0
+    fi
+    
+    # 2. 在所有分类中搜索匹配的文件名
+    local filename="$input"
+    if [[ "$filename" != *.md ]]; then
+        filename="${filename}.md"
+    fi
+    
+    # 使用 find 寻找所有匹配项
+    local matches=($(find "$SKILLS_DIR" -type f -name "$filename"))
+    local count=${#matches[@]}
+    
+    if [ "$count" -eq 1 ]; then
+        echo "${matches[0]}"
+        return 0
+    elif [ "$count" -gt 1 ]; then
+        echo -e "${YELLOW}[警告]${NC} 发现多个匹配的技能，请尝试使用完整路径安装:" >&2
+        for match in "${matches[@]}"; do
+            local rel="${match#$SKILLS_DIR/}"
+            echo -e "  - ${CYAN}ash install $rel${NC}" >&2
+        done
+        return 2 # 冲突
+    fi
+    
+    return 1 # 未找到
 }
 
 # ------------------------------------------------------------------------------
@@ -192,40 +233,29 @@ cmd_list() {
 # Command: info
 # ------------------------------------------------------------------------------
 cmd_info() {
-    local keyword="$1"
-    if [ -z "$keyword" ]; then
+    local skill_name="$1"
+    if [ -z "$skill_name" ]; then
         log_error "请提供技能名称 (例如: ash info pdf)"
         return 1
     fi
 
-    local found=0
-    while IFS= read -r file; do
-        local rel_path="${file#$SKILLS_DIR/}"
-        local filename="${rel_path##*/}"
+    local source_file; source_file=$(resolve_skill_path "$skill_name")
+    local ret=$?
+    
+    if [ $ret -eq 0 ]; then
+        local rel_path="${source_file#$SKILLS_DIR/}"
+        echo -e "${CYAN}技能:${NC} $rel_path"
+        local desc=$(extract_description "$source_file")
+        echo -e "${GREEN}描述:${NC} ${desc:-"(无描述)"}"
         
-        # 精确匹配文件名或路径
-        if [[ "$rel_path" == *"$keyword"* ]] || [[ "$filename" == *"$keyword"* ]]; then
-            [ "$found" -ne 0 ] && echo -e "\n---"
-            
-            echo -e "${CYAN}技能:${NC} $rel_path"
-            local desc=$(extract_description "$file")
-            echo -e "${GREEN}描述:${NC} ${desc:-"(无描述)"}"
-            
-            # 显示文件的前几行内容作为预览 (跳过前置元数据)
-            echo -e "${DIM}内容预览:${NC}"
-            if [ "$(head -n 1 "$file" 2>/dev/null)" == "---" ]; then
-                # 跳过 YAML 部分
-                sed '1,/---/d' "$file" | grep -v "^---" | head -n 10 | sed 's/^/  /'
-            else
-                head -n 10 "$file" | sed 's/^/  /'
-            fi
-            
-            found=$((found + 1))
+        echo -e "${DIM}内容预览:${NC}"
+        if [ "$(head -n 1 "$source_file" 2>/dev/null)" == "---" ]; then
+            sed '1,/---/d' "$source_file" | grep -v "^---" | head -n 10 | sed 's/^/  /'
+        else
+            head -n 10 "$source_file" | sed 's/^/  /'
         fi
-    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md")
-
-    if [ "$found" -eq 0 ]; then
-        log_error "未找到匹配的技能: $keyword"
+    elif [ $ret -eq 1 ]; then
+        log_error "未找到匹配的技能: $skill_name"
         return 1
     fi
 }
@@ -404,19 +434,19 @@ cmd_install() {
     local skill_name="$1"
     
     if [ -z "$skill_name" ]; then
-        log_error "请指定技能名称 (例如: java/expert 或 java/expert.md)"
+        log_error "请指定技能名称 (例如: pdf 或 productivity/pdf.md)"
         return 1
     fi
     
-    local source_file="$SKILLS_DIR/$skill_name"
-    if [ ! -f "$source_file" ]; then
-        if [ -f "${source_file}.md" ]; then
-            source_file="${source_file}.md"
-        else
-            log_error "技能未找到: $skill_name"
-            log_info "使用 'ash list' 查看可用技能"
-            return 1
-        fi
+    local source_file; source_file=$(resolve_skill_path "$skill_name")
+    local ret=$?
+    
+    if [ $ret -eq 1 ]; then
+        log_error "技能未找到: $skill_name"
+        log_info "使用 'ash list' 查看可用技能"
+        return 1
+    elif [ $ret -eq 2 ]; then
+        return 1
     fi
     
     local installed=0
