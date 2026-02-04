@@ -22,19 +22,24 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Smart Interaction**: Name-based installation, batch operations, and "Did you mean?" suggestions.
 - **CLI Tool**: Professional `ash` command to manage your AI workspace.
 
-### 1. Quick Install
-Clone the repository and run the installer:
+### 1. Quick Install (Recommended)
 
+**macOS / Linux:**
 ```bash
-# 1. Clone the repo
-git clone https://github.com/tiandee/awesome-skills-hub.git
-cd awesome-skills-hub
-
-# 2. Run installer
+# Run installer
 bash install.sh
 
-# 3. Apply changes (macOS/zsh)
-source ~/.zshrc
+# Reload shell config
+source ~/.zshrc  # or ~/.bashrc
+```
+
+**Windows (PowerShell):**
+```powershell
+# Run installer
+.\install.ps1
+
+# Reload profile
+. $PROFILE
 ```
 
 **The installer will:**

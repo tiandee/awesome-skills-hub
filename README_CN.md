@@ -13,18 +13,24 @@
 - **智能交互**：支持智能路径解析、批量操作以及人性化的拼写纠错建议。
 - **CLI 工具**：提供简洁、专业的 `ash` 命令，轻松管理技能。
 
-## 📦 安装指南
+### 1. 自动安装 (推荐)
 
+**macOS / Linux:**
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/tiandee/awesome-skills-hub.git
-cd awesome-skills-hub
-
-# 2. 执行安装脚本
+# 执行安装脚本
 bash install.sh
 
-# 3. 生效配置 (macOS/zsh 用户)
-source ~/.zshrc
+# 重启终端或运行源配置
+source ~/.zshrc  # 或 ~/.bashrc
+```
+
+**Windows (PowerShell):**
+```powershell
+# 执行安装脚本
+.\install.ps1
+
+# 重启终端或运行
+. $PROFILE
 ```
 
 **安装脚本将自动执行：**
