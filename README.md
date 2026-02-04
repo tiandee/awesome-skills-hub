@@ -32,18 +32,32 @@ cd awesome-skills-hub
 ash init
 ```
 
-### 2. List Available Skills
-See what skills are available in the repository.
+### 1. Browse Skill Library
+Browse official Anthropic skills automatically categorized by function:
 
 ```bash
 ash list
 ```
 
-### 3. Install a Skill
-Link a skill to your global AI configuration (Antigravity / Claude).
+**Built-in categories include:**
+- `productivity/` (pdf, xlsx, docx, pptx, etc.)
+- `creative/` (algorithmic-art, canvas-design, etc.)
+- `development/` (mcp-builder, webapp-testing, etc.)
+- `frontend/` (frontend-design, etc.)
+- `business/` (brand-guidelines, etc.)
+
+### 2. Search Skills
+Find skills by keywords.
 
 ```bash
-ash install java/expert.md
+ash search pdf
+```
+
+### 3. Install a Skill
+Link a skill to your global AI configuration.
+
+```bash
+ash install productivity/pdf.md
 ```
 
 ### 4. Check Status
@@ -57,7 +71,7 @@ ash status
 Remove a skill's symlink.
 
 ```bash
-ash uninstall expert
+ash uninstall pdf.md           # Uninstall specific skill
 ```
 
 ### 6. Update

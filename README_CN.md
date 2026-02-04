@@ -53,7 +53,7 @@ ash list
 使用关键词快速查找。
 
 ```bash
-ash search expert
+ash search pdf
 ```
 
 ### 3. 安装技能
@@ -74,7 +74,7 @@ ash status
 移除技能链接。支持 `--all` 标志一键清理。
 
 ```bash
-ash uninstall expert      # 卸载指定技能
+ash uninstall pdf.md      # 卸载指定技能
 ash uninstall --all       # 卸载所有已安装技能
 ```
 
