@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.0.0"
+VERSION="1.1.6"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -18,10 +18,14 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Logger Functions (Must be defined before use)
+log_info() { echo -e "${BLUE}[信息]${NC} $1"; }
+log_success() { echo -e "${GREEN}[成功]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
+log_error() { echo -e "${RED}[错误]${NC} $1"; }
+
 # 基础路径配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# System Paths
 ASH_HOME="$HOME/.ash"
 SKILLS_DIR="$ASH_HOME/skills"
 
