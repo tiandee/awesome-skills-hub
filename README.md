@@ -46,7 +46,14 @@ ash list
 - `frontend/` (frontend-design, etc.)
 - `business/` (brand-guidelines, etc.)
 
-### 2. Search Skills
+### 2. View Skill Details
+To see the detailed description, triggers, and a content preview of a specific skill:
+
+```bash
+ash info pdf
+```
+
+### 3. Search Skills
 Find skills by keywords.
 
 ```bash

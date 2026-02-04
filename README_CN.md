@@ -49,7 +49,14 @@ ash list
 - `frontend/` (frontend-design 等)
 - `business/` (brand-guidelines, internal-comms 等)
 
-### 2. 搜索技能
+### 2. 查看技能详情
+如果您想了解某个技能的详细用途、触发词或查看其内容预览，请使用 `info` 命令：
+
+```bash
+ash info pdf
+```
+
+### 3. 搜索技能
 使用关键词快速查找。
 
 ```bash

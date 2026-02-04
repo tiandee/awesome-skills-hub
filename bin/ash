@@ -77,6 +77,7 @@ show_help() {
     echo -e "${YELLOW}命令:${NC}"
     echo "  init              初始化环境并检测已安装的 IDE"
     echo "  list              列出所有可用技能"
+    echo "  info <name>       查看技能的详细描述和内容预览"
     echo "  search <keyword>  根据关键词搜索技能"
     echo "  status            显示已安装的技能"
     echo "  install <name>    安装技能 (创建软链接到所有已检测的 IDE)"
@@ -89,7 +90,8 @@ show_help() {
     echo ""
     echo -e "${YELLOW}示例:${NC}"
     echo "  ash init                      # 初始化并检测 IDE"
-    echo "  ash list                      # 查看可用技能"
+    echo "  ash list                      # 查看所有技能分类"
+    echo "  ash info pdf                  # 查看 PDF 技能详情"
     echo "  ash search react              # 搜索技能"
     echo "  ash install java/expert       # 安装技能"
     echo "  ash status                    # 查看已安装技能"
@@ -162,20 +164,70 @@ cmd_list() {
     echo ""
     
     local count=0
+    local last_category=""
+    
     while IFS= read -r file; do
-        rel_path="${file#$SKILLS_DIR/}"
-        first_line=$(extract_description "$file")
-        if [ -n "$first_line" ]; then
-            echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
-            echo -e "    $first_line"
-        else
-            echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
+        # 提取分类和文件名
+        local rel_path="${file#$SKILLS_DIR/}"
+        local category="${rel_path%/*}"
+        local filename="${rel_path##*/}"
+        
+        # 按分类显示
+        if [ "$category" != "$last_category" ]; then
+            [ "$count" -ne 0 ] && echo ""
+            echo -e "${YELLOW}[$category]${NC}"
+            last_category="$category"
         fi
+        
+        echo -e "  ${GREEN}•${NC} ${CYAN}$filename${NC}"
         ((count++))
     done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
     
     echo ""
     log_info "共 $count 个技能可用"
+    echo -e "${DIM}提示: 使用 'ash info <技能名>' 查看详细描述${NC}"
+}
+
+# ------------------------------------------------------------------------------
+# Command: info
+# ------------------------------------------------------------------------------
+cmd_info() {
+    local keyword="$1"
+    if [ -z "$keyword" ]; then
+        log_error "请提供技能名称 (例如: ash info pdf)"
+        return 1
+    fi
+
+    local found=0
+    while IFS= read -r file; do
+        local rel_path="${file#$SKILLS_DIR/}"
+        local filename="${rel_path##*/}"
+        
+        # 精确匹配文件名或路径
+        if [[ "$rel_path" == *"$keyword"* ]] || [[ "$filename" == *"$keyword"* ]]; then
+            [ "$found" -ne 0 ] && echo -e "\n---"
+            
+            echo -e "${CYAN}技能:${NC} $rel_path"
+            local desc=$(extract_description "$file")
+            echo -e "${GREEN}描述:${NC} ${desc:-"(无描述)"}"
+            
+            # 显示文件的前几行内容作为预览 (跳过前置元数据)
+            echo -e "${DIM}内容预览:${NC}"
+            if [ "$(head -n 1 "$file" 2>/dev/null)" == "---" ]; then
+                # 跳过 YAML 部分
+                sed '1,/---/d' "$file" | grep -v "^---" | head -n 10 | sed 's/^/  /'
+            else
+                head -n 10 "$file" | sed 's/^/  /'
+            fi
+            
+            found=$((found + 1))
+        fi
+    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md")
+
+    if [ "$found" -eq 0 ]; then
+        log_error "未找到匹配的技能: $keyword"
+        return 1
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -549,6 +601,10 @@ case "$1" in
         ;;
     list)
         cmd_list
+        ;;
+    info)
+        shift
+        cmd_info "$@"
         ;;
     search)
         shift
