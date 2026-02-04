@@ -54,6 +54,7 @@ show_help() {
     echo -e "${YELLOW}命令:${NC}"
     echo "  init              初始化环境并检测已安装的 IDE"
     echo "  list              列出所有可用技能"
+    echo "  search <keyword>  根据关键词搜索技能"
     echo "  status            显示已安装的技能"
     echo "  install <name>    安装技能 (创建软链接到所有已检测的 IDE)"
     echo "  uninstall <name>  卸载技能 (删除软链接)"
@@ -66,6 +67,7 @@ show_help() {
     echo -e "${YELLOW}示例:${NC}"
     echo "  ash init                      # 初始化并检测 IDE"
     echo "  ash list                      # 查看可用技能"
+    echo "  ash search react              # 搜索技能"
     echo "  ash install java/expert       # 安装技能"
     echo "  ash status                    # 查看已安装技能"
     echo "  ash uninstall expert          # 卸载技能"
@@ -151,6 +153,43 @@ cmd_list() {
     
     echo ""
     log_info "共 $count 个技能可用"
+}
+
+# ------------------------------------------------------------------------------
+# Command: search
+# ------------------------------------------------------------------------------
+cmd_search() {
+    local keyword="$1"
+    if [ -z "$keyword" ]; then
+        log_error "请提供关键词进行搜索 (例如: ash search react)"
+        return 1
+    fi
+
+    log_info "正在搜索关键词: '$keyword' ..."
+    echo ""
+
+    local count=0
+    while IFS= read -r file; do
+        rel_path="${file#$SKILLS_DIR/}"
+        # 获取第一行描述
+        first_line=$(head -n 1 "$file" 2>/dev/null | sed 's/^#\s*//')
+        
+        # 在路径或描述中搜索 (不区分大小写)
+        if echo "$rel_path $first_line" | grep -iq "$keyword"; then
+            echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
+            if [ -n "$first_line" ]; then
+                echo -e "    $first_line"
+            fi
+            ((count++))
+        fi
+    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
+
+    if [ $count -eq 0 ]; then
+        log_warn "未找到匹配的技能: $keyword"
+    else
+        echo ""
+        log_info "找到 $count 个匹配项"
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -456,6 +495,10 @@ case "$1" in
         ;;
     list)
         cmd_list
+        ;;
+    search)
+        shift
+        cmd_search "$@"
         ;;
     status)
         cmd_status
