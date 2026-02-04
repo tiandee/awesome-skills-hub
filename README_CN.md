@@ -19,6 +19,14 @@
 
 ### 1. 快速安装 (推荐)
 
+**通过 NPM (跨平台首选):**
+```bash
+npm install -g awesome-skills-hub
+```
+
+### 2. 备选安装 (Shell 脚本)
+如果您没有安装 Node.js：
+
 **macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
@@ -27,11 +35,6 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 **Windows (PowerShell):**
 ```powershell
 iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
-```
-
-**NPM (Node.js):**
-```bash
-npm install -g awesome-skills-hub
 ```
 
 ### 2. 手动安装 (Clone)

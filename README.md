@@ -28,6 +28,14 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 
 ### 1. Quick Install (Recommended)
 
+**Via NPM (Cross-Platform):**
+```bash
+npm install -g awesome-skills-hub
+```
+
+### 2. Alternative Install (Shell Script)
+If you don't have Node.js installed:
+
 **macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
@@ -36,11 +44,6 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 **Windows (PowerShell):**
 ```powershell
 iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
-```
-
-**NPM (Node.js):**
-```bash
-npm install -g awesome-skills-hub
 ```
 
 ### 2. Manual Install (Clone)
