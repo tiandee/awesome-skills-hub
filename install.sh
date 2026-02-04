@@ -36,69 +36,47 @@ else
     log_warn "/usr/local/bin 不可写，跳过软链接创建。将尝试配置 Shell 环境变量。"
 fi
 
-# 5. 配置 Shell 环境 (PATH & Autocompletion)
-USER_SHELL=$(basename "$SHELL")
-RC_FILE=""
+# 5. 自动配置环境变量 (PATH)
+configure_path() {
+    local shell_type="$1"
+    local config_file="$2"
+    local export_cmd="$3"
 
-case "$USER_SHELL" in
-    zsh)
-        RC_FILE="$HOME/.zshrc"
-        
-        # Install Zsh completion
-        ZSH_COMP_DIR="$HOME/.ash/completions"
-        mkdir -p "$ZSH_COMP_DIR"
-        cp "$PROJECT_ROOT/bin/_ash" "$ZSH_COMP_DIR/"
-        
-        log_info "正在配置 Zsh 自动补全..."
-        if [ -f "$RC_FILE" ]; then
-            if ! grep -q "fpath+=($ZSH_COMP_DIR)" "$RC_FILE"; then
-                echo  >> "$RC_FILE"
-                echo "# ASH Autocompletion" >> "$RC_FILE"
-                echo "fpath+=($ZSH_COMP_DIR)" >> "$RC_FILE"
-                echo "autoload -U compinit && compinit" >> "$RC_FILE"
-                log_success "Zsh 补全已配置。"
-            else
-                log_info "Zsh 补全已存在，跳过。"
-            fi
+    if [ -f "$config_file" ]; then
+        if ! grep -q "awesome-skills-hub/bin" "$config_file"; then
+            log_info "正在为 $shell_type 配置环境变量 ($config_file)..."
+            echo "" >> "$config_file"
+            echo "# Awesome-Skills-Hub (ASH) PATH" >> "$config_file"
+            echo "$export_cmd" >> "$config_file"
+            log_success "$shell_type 环境变量已配置。"
+            return 0
+        else
+            log_success "$shell_type 变量已在 $config_file 中配置。"
+            return 1
         fi
-        ;;
-    bash)
-        RC_FILE="$HOME/.bashrc"
-        [ -f "$HOME/.bash_profile" ] && RC_FILE="$HOME/.bash_profile"
-        
-        # Install Bash completion
-        cp "$PROJECT_ROOT/bin/ash.bash" "$HOME/.ash/"
-        
-        log_info "正在配置 Bash 自动补全..."
-        if [ -f "$RC_FILE" ]; then
-            if ! grep -q "source $HOME/.ash/ash.bash" "$RC_FILE"; then
-                echo >> "$RC_FILE"
-                echo "# ASH Autocompletion" >> "$RC_FILE"
-                echo "source $HOME/.ash/ash.bash" >> "$RC_FILE"
-                log_success "Bash 补全已配置。"
-            else
-                log_info "Bash 补全已存在，跳过。"
-            fi
-        fi
-        ;;
-    fish)
-        RC_FILE="$HOME/.config/fish/config.fish"
-        log_warn "暂未支持 Fish 自动补全，请等待后续更新。"
-        ;;
-    *)
-        log_warn "未识别的 Shell: $USER_SHELL，请手动配置环境变量。"
-        exit 0
-        ;;
-esac
-
-# 配置 PATH (如果未配置)
-if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ]; then
-    if ! grep -q "$ASH_BIN" "$RC_FILE"; then
-        echo "export PATH=\"\$PATH:$(dirname "$ASH_BIN")\"" >> "$RC_FILE"
-        log_success "PATH 变量已添加到 $RC_FILE"
-    else
-        log_info "PATH 变量已存在于 $RC_FILE，跳过。"
     fi
+    return 2
+}
+
+# 检测并配置常用 Shell
+PATH_INJECTED=0
+
+# ZSH
+if configure_path "Zsh" "$HOME/.zshrc" "export PATH=\"\$PATH:$PROJECT_ROOT/bin\""; then PATH_INJECTED=1; fi
+
+# Bash
+if configure_path "Bash" "$HOME/.bashrc" "export PATH=\"\$PATH:$PROJECT_ROOT/bin\""; then PATH_INJECTED=1; fi
+if [ -f "$HOME/.bash_profile" ]; then
+    if configure_path "Bash (Profile)" "$HOME/.bash_profile" "export PATH=\"\$PATH:$PROJECT_ROOT/bin\""; then PATH_INJECTED=1; fi
+fi
+
+# Fish
+if [ -d "$HOME/.config/fish" ]; then
+    if configure_path "Fish" "$HOME/.config/fish/config.fish" "set -gx PATH \$PATH $PROJECT_ROOT/bin"; then PATH_INJECTED=1; fi
+fi
+
+if [ $PATH_INJECTED -eq 1 ]; then
+    log_warn "提示: 请重启终端或运行 'source' 命令使配置生效。"
 fi
 
 echo ""
