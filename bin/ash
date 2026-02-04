@@ -430,15 +430,120 @@ cmd_status() {
 # ------------------------------------------------------------------------------
 # Command: install
 # ------------------------------------------------------------------------------
+# 辅助函数: 安装单个技能文件到所有检测到的 IDE
+install_skill_file() {
+    local source_file="$1"
+    local installed=0
+    local filename=$(basename "$source_file")
+
+    # Link to Antigravity
+    if [ -d "$AGENT_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$AGENT_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+    
+    # Link to Cursor
+    if [ -d "$CURSOR_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$CURSOR_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+
+    # Link to TRAE
+    if [ -d "$TRAE_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$TRAE_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+
+    # Link to Windsurf
+    if [ -d "$WINDSURF_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$WINDSURF_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+
+    # Link to VS Code + Copilot
+    if [ -d "$COPILOT_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$COPILOT_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+
+    # Link to Claude Code
+    if [ -d "$CLAUDE_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$CLAUDE_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+
+    # Link to Trae CN
+    if [ -d "$TRAE_CN_SKILLS_DIR" ]; then
+        ln -sf "$source_file" "$TRAE_CN_SKILLS_DIR/$filename"
+        ((installed++))
+    fi
+
+    if [ $installed -gt 0 ]; then
+        log_success "已链接: $filename (${source_file#$SKILLS_DIR/})"
+    fi
+    return $installed
+}
+
 cmd_install() {
     local skill_name="$1"
     
     if [ -z "$skill_name" ]; then
-        log_error "请指定技能名称 (例如: pdf 或 productivity/pdf.md)"
+        log_error "请指定技能名称 (例如: pdf 或 --all)"
         return 1
     fi
+
+    if [ "$skill_name" == "--all" ]; then
+        # 获取所有待安装的技能文件
+        local skill_files=()
+        while IFS= read -r file; do
+            skill_files+=("$file")
+        done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
+        
+        local skill_count=${#skill_files[@]}
+        log_info "正在批量安装 $skill_count 个技能到所有检测到的 IDE..."
+        echo ""
+
+        # 定义 IDE 名称及其对应的路径
+        local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+        local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+        
+        local updated_ides=()
+        local total_links=0
+        
+        # 逐个安装技能并显示列表风格的进度
+        for file in "${skill_files[@]}"; do
+            local filename=$(basename "$file")
+            local rel_path="${file#$SKILLS_DIR/}"
+            echo -e "  ${GREEN}•${NC} ${CYAN}$filename${NC} ${DIM}($rel_path)${NC}"
+            
+            for i in "${!ides[@]}"; do
+                local dir="${dirs[$i]}"
+                if [ -d "$dir" ]; then
+                    ln -sf "$file" "$dir/$filename"
+                    ((total_links++))
+                fi
+            done
+        done
+
+        # 统计有效 IDE
+        for i in "${!ides[@]}"; do
+            [ -d "${dirs[$i]}" ] && updated_ides+=("${ides[$i]}")
+        done
+        
+        echo ""
+        if [ ${#updated_ides[@]} -gt 0 ]; then
+            local ides_list=$(IFS=,; echo "${updated_ides[*]}")
+            log_success "批量安装完成！"
+            echo -e "  ${CYAN}已同步 IDE:${NC} ${ides_list//,/、}"
+            echo -e "  ${CYAN}总链接数:${NC} $total_links"
+        else
+            log_warn "未检测到支持的 IDE 环境，请先运行 'ash init'"
+        fi
+        return 0
+    fi
     
-    local source_file; source_file=$(resolve_skill_path "$skill_name")
+    local source_file
+    source_file=$(resolve_skill_path "$skill_name")
     local ret=$?
     
     if [ $ret -eq 1 ]; then
@@ -449,65 +554,8 @@ cmd_install() {
         return 1
     fi
     
-    local installed=0
-    
-    # Link to Antigravity
-    if [ -d "$AGENT_SKILLS_DIR" ]; then
-        local target_path="$AGENT_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 Antigravity: $target_path"
-        ((installed++))
-    fi
-    
-    # Link to Cursor
-    if [ -d "$CURSOR_SKILLS_DIR" ]; then
-        local target_path="$CURSOR_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 Cursor: $target_path"
-        ((installed++))
-    fi
-
-    # Link to TRAE
-    if [ -d "$TRAE_SKILLS_DIR" ]; then
-        local target_path="$TRAE_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 TRAE: $target_path"
-        ((installed++))
-    fi
-
-    # Link to Windsurf
-    if [ -d "$WINDSURF_SKILLS_DIR" ]; then
-        local target_path="$WINDSURF_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 Windsurf: $target_path"
-        ((installed++))
-    fi
-
-    # Link to VS Code + Copilot
-    if [ -d "$COPILOT_SKILLS_DIR" ]; then
-        local target_path="$COPILOT_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 Copilot: $target_path"
-        ((installed++))
-    fi
-
-    # Link to Claude Code
-    if [ -d "$CLAUDE_SKILLS_DIR" ]; then
-        local target_path="$CLAUDE_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 Claude: $target_path"
-        ((installed++))
-    fi
-
-    # Link to Trae CN
-    if [ -d "$TRAE_CN_SKILLS_DIR" ]; then
-        local target_path="$TRAE_CN_SKILLS_DIR/$(basename "$source_file")"
-        ln -sf "$source_file" "$target_path"
-        log_success "已链接到 Trae CN: $target_path"
-        ((installed++))
-    fi
-    
-    if [ $installed -eq 0 ]; then
+    install_skill_file "$source_file"
+    if [ $? -eq 0 ]; then
         log_warn "未找到可安装的目标目录，请先运行 'ash init'"
     fi
 }
@@ -517,24 +565,44 @@ cmd_install() {
 # ------------------------------------------------------------------------------
 remove_all_links() {
     log_info "正在从所有 IDE 卸载所有技能..."
-    local count=0
+    local total_count=0
+    
+    # 定义 IDE 名称及其对应的路径
+    local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
     local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
-    for dir in "${dirs[@]}"; do
+    for i in "${!ides[@]}"; do
+        local ide_name="${ides[$i]}"
+        local dir="${dirs[$i]}"
+        local ide_count=0
+        local removed_skills=()
+        
         if [ -d "$dir" ]; then
+            # 记录该 IDE 下移除的所有技能
             for link in "$dir"/*.md; do
                 if [ -L "$link" ]; then
+                    local filename=$(basename "$link")
                     rm "$link"
-                    ((count++))
+                    removed_skills+=("$filename")
+                    ((ide_count++))
+                    ((total_count++))
                 fi
             done
+            
+            # 输出该 IDE 的结果
+            if [ $ide_count -gt 0 ]; then
+                # 将数组转换为逗号分隔的字符串
+                local skills_list=$(IFS=,; echo "${removed_skills[*]}")
+                echo -e "  ${CYAN}$ide_name:${NC} 已移除 ${GREEN}$ide_count${NC} 个技能 [${DIM}${skills_list//,/、}${NC}]"
+            fi
         fi
     done
     
-    if [ $count -gt 0 ]; then
-        log_success "成功卸载 $count 个技能链接。"
+    echo ""
+    if [ $total_count -gt 0 ]; then
+        log_success "全量卸载完成，共从所有 IDE 中移除了 $total_count 个链接。"
     else
-        log_warn "未发现已安装的技能链接。"
+        log_warn "未发现任何已安装的技能链接。"
     fi
 }
 
@@ -662,7 +730,34 @@ case "$1" in
     -h|--help)
         show_help
         ;;
-    *)
+    "")
         show_help
+        ;;
+    *)
+        command="$1"
+        log_error "未知命令: '$command'"
+        
+        # 智能建议逻辑
+        case "$command" in
+            intall|insall|instal)
+                echo -e "💡 您是不是想输入: ${CYAN}ash install${NC} ?"
+                ;;
+            unintall|uninstal)
+                echo -e "💡 您是不是想输入: ${CYAN}ash uninstall${NC} ?"
+                ;;
+            ls|lst)
+                echo -e "💡 您是不是想输入: ${CYAN}ash list${NC} ?"
+                ;;
+            serch|find)
+                echo -e "💡 您是不是想输入: ${CYAN}ash search${NC} ?"
+                ;;
+            stat|st)
+                echo -e "💡 您是不是想输入: ${CYAN}ash status${NC} ?"
+                ;;
+            *)
+                echo -e "详情请运行: ${DIM}ash --help${NC}"
+                ;;
+        esac
+        exit 1
         ;;
 esac

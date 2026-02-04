@@ -21,15 +21,19 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Symlink-Based**: Updates in the repository immediately reflect in all your connected IDEs. No manual syncing required.
 - **CLI Tool**: Simple `ash` command to manage installations.
 
-### 1. Installation
+### 1. Quick Install
 Clone the repository and run the installer:
 
 ```bash
+# 1. Clone the repo
 git clone https://github.com/tiandee/awesome-skills-hub.git
 cd awesome-skills-hub
 
-```bash
-ash init
+# 2. Run installer
+bash install.sh
+
+# 3. Apply changes (macOS/zsh)
+source ~/.zshrc
 ```
 
 ### 1. Browse Skill Library

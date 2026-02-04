@@ -14,13 +14,16 @@
 
 ## 📦 安装指南
 
-### 1. 一键安装
-克隆仓库并运行安装脚本：
-
 ```bash
+# 1. 克隆仓库
 git clone https://github.com/tiandee/awesome-skills-hub.git
 cd awesome-skills-hub
-sh install.sh
+
+# 2. 执行安装脚本
+bash install.sh
+
+# 3. 生效配置 (macOS/zsh 用户)
+source ~/.zshrc
 ```
 
 **安装脚本将自动执行：**
