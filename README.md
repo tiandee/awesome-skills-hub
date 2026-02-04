@@ -31,6 +31,8 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 **Via NPM (Cross-Platform):**
 ```bash
 npm install -g awesome-skills-hub
+# After install, run this to initialize:
+ash init
 ```
 
 ### 2. Alternative Install (Shell Script)

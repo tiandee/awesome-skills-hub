@@ -22,6 +22,8 @@
 **通过 NPM (跨平台首选):**
 ```bash
 npm install -g awesome-skills-hub
+# 安装完成后，请运行初始化命令：
+ash init
 ```
 
 ### 2. 备选安装 (Shell 脚本)
