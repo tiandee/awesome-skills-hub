@@ -13,23 +13,12 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Symlink-Based**: Updates in the repository immediately reflect in all your connected IDEs. No manual syncing required.
 - **CLI Tool**: Simple `ash` command to manage installations.
 
-## 📦 Installation
+### 1. Installation
+Clone the repository and run the installer:
 
 ```bash
 git clone https://github.com/tiandee/awesome-skills-hub.git
 cd awesome-skills-hub
-./install.sh
-```
-
-Or add to your path manually:
-```bash
-export PATH=$PATH:/path/to/awesome-skills-hub/bin
-```
-
-## 📖 Usage
-
-### 1. Initialize
-Detect installed AI IDEs and set up necessary directories.
 
 ```bash
 ash init
