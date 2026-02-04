@@ -4,11 +4,17 @@
 $ASH_HOME = Join-Path $env:USERPROFILE ".ash"
 $SKILLS_DIR = Join-Path $ASH_HOME "skills"
 
-# Check if global skills exist, fallback to project local for installation phase
+# Check if global skills exist. If not, initialize them from the package (First Run Logic)
 $PROJECT_ROOT = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if (-not (Test-Path $SKILLS_DIR)) {
     $LOCAL_SKILLS = Join-Path $PROJECT_ROOT "skills"
     if (Test-Path $LOCAL_SKILLS) {
+        Write-Host "[$BLUE信息$NC] 首次运行，正在初始化全局环境 (~/.ash)..."
+        New-Item -Path $ASH_HOME -ItemType Directory -Force | Out-Null
+        Copy-Item -Path $LOCAL_SKILLS -Destination $SKILLS_DIR -Recurse -Force
+        Write-Host "[$GREEN成功$NC] 初始化完成！"
+    } else {
+        # Fallback only if local skills not found (shouldn't happen in valid install)
         $SKILLS_DIR = $LOCAL_SKILLS
     }
 }
