@@ -1,5 +1,9 @@
 # install.ps1 - ASH (Awesome Skills Hub) Windows Native Installer
 # This script sets up ASH on Windows by adding it to the environment path and setting up an alias.
+
+# 解决中文乱码问题
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 # 0. 检测安装模式 (本地 vs 远程)
 $ScriptPath = $PSScriptRoot
 if (-not (Test-Path -Path "$ScriptPath\bin\ash.ps1")) {
