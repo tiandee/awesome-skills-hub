@@ -26,7 +26,7 @@ ASH_HOME="$HOME/.ash"
 SKILLS_DIR="$ASH_HOME/skills"
 
 # Check if global skills exist. If not, initialize them from the package (First Run Logic)
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 if [ ! -d "$SKILLS_DIR" ]; then
     LOCAL_SKILLS="$PROJECT_ROOT/skills"
     if [ -d "$LOCAL_SKILLS" ]; then
@@ -34,6 +34,10 @@ if [ ! -d "$SKILLS_DIR" ]; then
         mkdir -p "$ASH_HOME"
         cp -r "$LOCAL_SKILLS" "$SKILLS_DIR"
         log_success "初始化完成！"
+    else
+        # Debugging aid
+        # log_warn "未能在安装包内找到 skills 目录: $LOCAL_SKILLS"
+        :
     fi
 fi
 
