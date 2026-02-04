@@ -57,7 +57,7 @@ show_help() {
     echo "  search <keyword>  根据关键词搜索技能"
     echo "  status            显示已安装的技能"
     echo "  install <name>    安装技能 (创建软链接到所有已检测的 IDE)"
-    echo "  uninstall <name>  卸载技能 (删除软链接)"
+    echo "  uninstall <name>  卸载技能 (删除软链接，支持 --all 卸载全部)"
     echo "  sync              同步更新技能仓库 (git pull)"
     echo ""
     echo -e "${YELLOW}选项:${NC}"
@@ -70,7 +70,8 @@ show_help() {
     echo "  ash search react              # 搜索技能"
     echo "  ash install java/expert       # 安装技能"
     echo "  ash status                    # 查看已安装技能"
-    echo "  ash uninstall expert          # 卸载技能"
+    echo "  ash uninstall expert          # 卸载指定技能"
+    echo "  ash uninstall --all           # 卸载所有已安装技能"
     echo ""
 }
 
@@ -408,13 +409,44 @@ cmd_install() {
 }
 
 # ------------------------------------------------------------------------------
+# Helper: Remove all skill links from all IDEs
+# ------------------------------------------------------------------------------
+remove_all_links() {
+    log_info "正在从所有 IDE 卸载所有技能..."
+    local count=0
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    
+    for dir in "${dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            for link in "$dir"/*.md; do
+                if [ -L "$link" ]; then
+                    rm "$link"
+                    ((count++))
+                fi
+            done
+        fi
+    done
+    
+    if [ $count -gt 0 ]; then
+        log_success "成功卸载 $count 个技能链接。"
+    else
+        log_warn "未发现已安装的技能链接。"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Command: uninstall
 # ------------------------------------------------------------------------------
 cmd_uninstall() {
     local skill_name="$1"
     
+    if [ "$skill_name" == "--all" ]; then
+        remove_all_links
+        return 0
+    fi
+    
     if [ -z "$skill_name" ]; then
-        log_error "请指定要卸载的技能名称 (例如: expert 或 expert.md)"
+        log_error "请指定要卸载的技能名称 (例如: expert 或 expert.md，或使用 --all)"
         return 1
     fi
     
