@@ -2,6 +2,9 @@
 
 > **"Write Once, Link Everywhere"** - The "Homebrew" for AI IDE Skills.
 
+[![NPM Version](https://img.shields.io/npm/v/awesome-skills-hub?color=red)](https://www.npmjs.com/package/awesome-skills-hub)
+[![License](https://img.shields.io/npm/l/awesome-skills-hub)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
+
 **Awesome-Skills-Hub (ASH) 🚀**
 
 A lightweight package manager for AI IDE skills, rules, and architecture instructions.
