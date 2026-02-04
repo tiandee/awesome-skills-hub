@@ -87,3 +87,7 @@ powershell -ExecutionPolicy Bypass -File "$AshScript" init
 Write-Host "`n🎉 恭喜！ASH 已安装成功。" -ForegroundColor Green
 Write-Host "请重启您的 PowerShell 或运行 '. `$PROFILE' 以使更改生效。" -ForegroundColor Cyan
 Write-Host "现在您可以直接输入 'ash' 来管理您的 AI 技能了！" -ForegroundColor Cyan
+
+Write-Host ""
+Write-Host "✅ 安装完成！请按 Enter 键退出..." -ForegroundColor Green
+Read-Host
