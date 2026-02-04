@@ -21,7 +21,10 @@ ASH_BIN="$PROJECT_ROOT/bin/ash"
 # 2. 赋予执行权限
 chmod +x "$ASH_BIN"
 
-# 3. 初始化环境
+# 3. 初始化全局环境
+log_info "正在初始化全局配置目录 (~/.ash)..."
+mkdir -p "$HOME/.ash/skills"
+cp -r "$PROJECT_ROOT/skills/"* "$HOME/.ash/skills/"
 "$ASH_BIN" init
 
 # 4. 尝试创建系统软链接 (免 source 方案)

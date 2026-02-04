@@ -20,8 +20,19 @@ NC='\033[0m'
 
 # 基础路径配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-SKILLS_DIR="$PROJECT_ROOT/skills"
+
+# System Paths
+ASH_HOME="$HOME/.ash"
+SKILLS_DIR="$ASH_HOME/skills"
+
+# Check if global skills exist, fallback to project local for installation phase
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ ! -d "$SKILLS_DIR" ]; then
+    LOCAL_SKILLS="$PROJECT_ROOT/skills"
+    if [ -d "$LOCAL_SKILLS" ]; then
+        SKILLS_DIR="$LOCAL_SKILLS"
+    fi
+fi
 
 # 目标路径配置 (仅支持 Skills 的平台)
 HOME_DIR="$HOME"
@@ -195,6 +206,28 @@ cmd_init() {
     detect_ide "Trae CN" "$HOME_DIR/.trae-cn" "trae" "mkdir -p \"$TRAE_CN_SKILLS_DIR\""
 
     log_success "初始化完成。"
+}
+
+# ------------------------------------------------------------------------------
+# Command: sync
+# ------------------------------------------------------------------------------
+cmd_sync() {
+    log_info "正在同步技能库..."
+    
+    # 1. 如果在项目目录下，先拉取最新代码
+    if [ -d "$PROJECT_ROOT/.git" ]; then
+        log_info "正在从远程仓库拉取更新 ($PROJECT_ROOT)..."
+        (cd "$PROJECT_ROOT" && git pull origin main)
+        
+        # 2. 同步到全局目录
+        log_info "正在同步到全局主目录 ($SKILLS_DIR)..."
+        cp -r "$PROJECT_ROOT/skills/"* "$SKILLS_DIR/"
+    else
+        log_warn "未在项目根目录运行，将跳过本地仓库同步。"
+        log_info "如果您想直接从远程同步到全局，请克隆项目并运行 install.sh。"
+    fi
+    
+    log_success "同步完成！您可以运行 'ash list' 查看最新技能。"
 }
 
 # ------------------------------------------------------------------------------

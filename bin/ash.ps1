@@ -1,9 +1,18 @@
 # ash.ps1 - Awesome Skills Hub CLI for Windows
 # A PowerShell implementation for managing AI IDE skills.
 
-$SKILLS_HUB_HOME = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$SKILLS_DIR = Join-Path $SKILLS_HUB_HOME "skills"
-$BIN_DIR = Join-Path $SKILLS_HUB_HOME "bin"
+$ASH_HOME = Join-Path $env:USERPROFILE ".ash"
+$SKILLS_DIR = Join-Path $ASH_HOME "skills"
+
+# Check if global skills exist, fallback to project local for installation phase
+$PROJECT_ROOT = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+if (-not (Test-Path $SKILLS_DIR)) {
+    $LOCAL_SKILLS = Join-Path $PROJECT_ROOT "skills"
+    if (Test-Path $LOCAL_SKILLS) {
+        $SKILLS_DIR = $LOCAL_SKILLS
+    }
+}
+$BIN_DIR = Join-Path $PROJECT_ROOT "bin"
 
 # Define Paths for Windows
 $AGENT_SKILLS_DIR = Join-Path $env:USERPROFILE ".agent\skills"
@@ -282,8 +291,24 @@ function Invoke-Status {
 }
 
 function Invoke-Sync {
-    Write-LogInfo "正在从远程仓库同步技能..."
-    git pull origin main
+    Write-LogInfo "正在同步技能库..."
+    
+    # 1. 检查项目目录
+    $gitDir = Join-Path $PROJECT_ROOT ".git"
+    if (Test-Path $gitDir) {
+        Write-LogInfo "正在从远程仓库拉取更新..."
+        Set-Location $PROJECT_ROOT
+        git pull origin main
+        Set-Location $SKILLS_HUB_HOME # Back to home
+
+        # 2. 同步到全局目录
+        Write-LogInfo "正在同步到全局主目录 ($SKILLS_DIR)..."
+        $localSkills = Join-Path $PROJECT_ROOT "skills"
+        Copy-Item -Path "$localSkills\*" -Destination $SKILLS_DIR -Recurse -Force
+    } else {
+        Write-LogWarn "未在项目根目录运行，将跳过本地仓库同步。"
+    }
+    
     Write-LogSuccess "同步完成！您可以运行 'ash list' 查看最新技能。"
 }
 

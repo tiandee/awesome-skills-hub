@@ -43,8 +43,13 @@ if ($ProfileContent -notlike "*function ash {*") {
     Write-Host "ℹ️ `$PROFILE 中已存在 ash 配置。" -ForegroundColor Gray
 }
 
-# 3. 初始化目录
-Write-Host "📂 正在同步/初始化本地 IDE 目录..." -ForegroundColor Yellow
+# 3. 初始化环境与同步技能
+Write-Host "📂 正在同步/初始化全局技能主目录 (~/.ash)..." -ForegroundColor Yellow
+$AshHome = Join-Path $env:USERPROFILE ".ash"
+$GlobalSkills = Join-Path $AshHome "skills"
+if (-not (Test-Path $GlobalSkills)) { New-Item -Path $GlobalSkills -ItemType Directory -Force | Out-Null }
+Copy-Item -Path "$(Join-Path $CurrentDir "skills")\*" -Destination $GlobalSkills -Recurse -Force
+
 powershell -ExecutionPolicy Bypass -File "$AshScript" init
 
 Write-Host "`n🎉 恭喜！ASH 已安装成功。" -ForegroundColor Green
