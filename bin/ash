@@ -31,6 +31,7 @@ TRAE_SKILLS_DIR="$HOME_DIR/.trae/skills"         # TRAE
 WINDSURF_SKILLS_DIR="$HOME_DIR/.windsurf/skills" # Windsurf
 COPILOT_SKILLS_DIR="$HOME_DIR/.copilot/skills"   # VS Code + Copilot
 CLAUDE_SKILLS_DIR="$HOME_DIR/.claude/skills"     # Claude Code
+TRAE_CN_SKILLS_DIR="$HOME_DIR/.trae-cn/skills"   # Trae Chinese Version
 
 # ------------------------------------------------------------------------------
 # 帮助函数
@@ -120,6 +121,9 @@ cmd_init() {
 
     # 6. Claude Code
     detect_ide "Claude Code" "$HOME_DIR/.claude" "claude" "mkdir -p \"$CLAUDE_SKILLS_DIR\""
+
+    # 7. Trae CN (Chinese Version)
+    detect_ide "Trae CN" "$HOME_DIR/.trae-cn" "trae" "mkdir -p \"$TRAE_CN_SKILLS_DIR\""
 
     log_success "初始化完成。"
 }
@@ -258,6 +262,23 @@ cmd_status() {
             echo -e "    ${YELLOW}(无)${NC}"
         fi
     fi
+
+    found=0
+    # Check Trae CN
+    if [ -d "$TRAE_CN_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}Trae CN (~/.trae-cn/skills):${NC}"
+        for link in "$TRAE_CN_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
     
     echo ""
 }
@@ -333,6 +354,14 @@ cmd_install() {
         log_success "已链接到 Claude: $target_path"
         ((installed++))
     fi
+
+    # Link to Trae CN
+    if [ -d "$TRAE_CN_SKILLS_DIR" ]; then
+        local target_path="$TRAE_CN_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 Trae CN: $target_path"
+        ((installed++))
+    fi
     
     if [ $installed -eq 0 ]; then
         log_warn "未找到可安装的目标目录，请先运行 'ash init'"
@@ -402,6 +431,14 @@ cmd_uninstall() {
     if [ -L "$claude_link" ]; then
         rm "$claude_link"
         log_success "已从 Claude 移除: $skill_name"
+        ((removed++))
+    fi
+
+    # Remove from Trae CN
+    local trae_cn_link="$TRAE_CN_SKILLS_DIR/$skill_name"
+    if [ -L "$trae_cn_link" ]; then
+        rm "$trae_cn_link"
+        log_success "已从 Trae CN 移除: $skill_name"
         ((removed++))
     fi
     

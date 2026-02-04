@@ -91,6 +91,7 @@ awesome-skills-hub/
 | **Google Antigravity** | `~/.agent/skills/` | ✅ Full Support |
 | **Cursor** | `~/.cursor/skills/` | ✅ Full Support |
 | **TRAE** | `~/.trae/skills/` | ✅ Full Support |
+| **TRAE CN** | `~/.trae-cn/skills/` | ✅ Full Support |
 | **Windsurf** | `~/.windsurf/skills/` | ✅ Full Support |
 | **VS Code + Copilot** | `~/.copilot/skills/` | ✅ Full Support |
 | **Claude Code** | `~/.claude/skills/` | ✅ Full Support |
