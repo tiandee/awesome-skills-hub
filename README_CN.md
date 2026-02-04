@@ -14,7 +14,20 @@
 - **智能交互**：支持智能路径解析、批量操作以及人性化的拼写纠错建议。
 - **CLI 工具**：提供简洁、专业的 `ash` 命令，轻松管理技能。
 
-### 1. 自动安装 (推荐)
+### 1. 快速安装 (推荐)
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
+```
+
+### 2. 手动安装 (Clone)
+如果您希望参与贡献代码：
 
 **macOS / Linux:**
 ```bash

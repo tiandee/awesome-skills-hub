@@ -1,10 +1,38 @@
 # install.ps1 - ASH (Awesome Skills Hub) Windows Native Installer
 # This script sets up ASH on Windows by adding it to the environment path and setting up an alias.
+# 0. 检测安装模式 (本地 vs 远程)
+$ScriptPath = $PSScriptRoot
+if (-not (Test-Path -Path "$ScriptPath\bin\ash.ps1")) {
+    Write-Host "📡 未检测到本地文件，进入远程安装模式..." -ForegroundColor Cyan
+    
+    $AshAppDir = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".ash\app"
+    
+    if (Test-Path -Path $AshAppDir) {
+        Write-Host "🔄 清理旧版本..." -ForegroundColor Gray
+        Remove-Item -Path $AshAppDir -Recurse -Force
+    }
+    
+    Write-Host "⬇️  正在克隆仓库到 $AshAppDir ..." -ForegroundColor Cyan
+    git clone https://github.com/tiandee/awesome-skills-hub.git $AshAppDir
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ 克隆失败，请检查 Git 是否安装以及网络连接。" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "🚀 转交控制权给本地安装脚本..." -ForegroundColor Green
+    & "$AshAppDir\install.ps1"
+    exit
+}
+
+# ========================================================
+# 本地安装逻辑 (Local Install Flow)
+# ========================================================
 
 Write-Host "🚀 开始安装 Awesome Skills Hub (ASH)..." -ForegroundColor Cyan
 
-$CurrentDir = Get-Location
-$BinDir = Join-Path $CurrentDir "bin"
+$SkillsHubHome = $ScriptPath
+$BinDir = Join-Path $SkillsHubHome "bin"
 $AshScript = Join-Path $BinDir "ash.ps1"
 
 if (-not (Test-Path $AshScript)) {

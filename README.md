@@ -27,6 +27,19 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 
 **macOS / Linux:**
 ```bash
+curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
+```
+
+### 2. Manual Install (Clone)
+If you prefer managing the repo yourself or want to contribute:
+
+**macOS / Linux:**
+```bash
 # Run installer
 bash install.sh
 

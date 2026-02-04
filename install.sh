@@ -14,11 +14,39 @@ log_error() { echo -e "${RED}[错误]${NC} $1"; }
 
 log_info "正在安装 Awesome-Skills-Hub (ASH)..."
 
-# 1. 自动检测项目 root 目录
+# 1. 检测安装模式 (本地 vs 远程)
+# 如果当前目录下存在 bin/ash，则视为本地安装/开发模式
+# 否则视为远程安装，将仓库克隆到 ~/.ash/app
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-ASH_BIN="$PROJECT_ROOT/bin/ash"
 
-# 2. 赋予执行权限
+if [ ! -f "$PROJECT_ROOT/bin/ash" ]; then
+    log_info "未检测到本地运行环境，进入远程安装模式..."
+    
+    ASH_APP_DIR="$HOME/.ash/app"
+    
+    if [ -d "$ASH_APP_DIR" ]; then
+        log_info "发现旧的安装目录，正在更新..."
+        rm -rf "$ASH_APP_DIR"
+    fi
+    
+    log_info "正在克隆代码库到 $ASH_APP_DIR ..."
+    git clone https://github.com/tiandee/awesome-skills-hub.git "$ASH_APP_DIR"
+    
+    if [ $? -ne 0 ]; then
+        log_error "克隆失败，请检查网络或 git 设置。"
+        exit 1
+    fi
+    
+    log_info "代码克隆成功，转交控制权给本地安装脚本..."
+    exec "$ASH_APP_DIR/install.sh"
+    exit 0
+fi
+
+# ========================================================
+# 以下为本地安装逻辑 (Local Install Flow)
+# ========================================================
+
+ASH_BIN="$PROJECT_ROOT/bin/ash"
 chmod +x "$ASH_BIN"
 
 # 3. 初始化全局环境
