@@ -612,6 +612,13 @@ cmd_install() {
         return 1
     fi
     
+    # Safety Check: Ensure the resolved path is actually a file
+    if [ ! -f "$source_file" ]; then
+        log_error "内部错误：解析到的路径无效。"
+        # echo "Debug: $source_file"
+        return 1
+    fi
+    
     install_skill_file "$source_file"
     if [ $? -eq 0 ]; then
         log_warn "未找到可安装的目标目录，请先运行 'ash init'"
