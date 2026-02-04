@@ -18,6 +18,7 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 
 - **Centralized Management**: Keep all your prompts in one Git repository.
 - **Cross-Platform**: Supports **Antigravity**, **Cursor**, **Windsurf**, **TRAE**, and **Claude CLI**.
+- **Persistent Storage (ASH_HOME)**: Skills are stored in your home directory (`~/.ash`). Your IDE links remain intact even if you delete the cloned repository.
 - **Symlink-Based**: Updates in the repository immediately reflect in all your connected IDEs.
 - **Smart Interaction**: Name-based installation, batch operations, and "Did you mean?" suggestions.
 - **CLI Tool**: Professional `ash` command to manage your AI workspace.
@@ -44,8 +45,9 @@ source ~/.zshrc  # or ~/.bashrc
 
 **The installer will:**
 1. Detect and initialize all mainstream AI IDE environments.
-2. Configure environment variables for **Zsh**, **Bash**, and **Fish**.
-3. Enable global `ash` command access instantly.
+2. **Setup ASH_HOME**: Create `~/.ash/skills` (or `~\.ash\skills` on Windows) for persistent storage.
+3. Configure environment variables for **Zsh**, **Bash**, and **Fish**.
+4. Enable global `ash` command access instantly.
 
 ### 1. Browse Skill Library
 Browse official Anthropic skills automatically categorized:
@@ -84,11 +86,17 @@ ash uninstall --all       # Clean up everything everywhere
 ```
 
 ### 6. Update
-Pull the latest skills from the repository.
+Pull the latest skills from the repository and sync them to your global home.
 
 ```bash
 ash sync
 ```
+
+## 📂 System Architecture
+
+- **ASH Home**: `~/.ash` (or `$env:USERPROFILE\.ash`)
+- **Global Skills Hub**: `~/.ash/skills/`
+- **Persistent Links**: All IDE symlinks point to this stable global path, not the temporary clone directory.
 
 ## 📂 Repository Structure
 
