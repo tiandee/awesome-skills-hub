@@ -26,6 +26,11 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
 ```
 
+**NPM (Node.js):**
+```bash
+npm install -g awesome-skills-hub
+```
+
 ### 2. 手动安装 (Clone)
 如果您希望参与贡献代码：
 

@@ -35,6 +35,11 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
 ```
 
+**NPM (Node.js):**
+```bash
+npm install -g awesome-skills-hub
+```
+
 ### 2. Manual Install (Clone)
 If you prefer managing the repo yourself or want to contribute:
 
