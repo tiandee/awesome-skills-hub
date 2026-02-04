@@ -49,15 +49,21 @@ Link a skill to your global AI configuration (Antigravity / Claude).
 ash install java/expert.md
 ```
 
-**Project-Specific Installation (Cursor/Windsurf)**:
-To install a rule only for the current project (e.g., into `.cursor/rules/`):
+### 4. Check Status
+See which skills are currently installed.
 
 ```bash
-cd my-project
-ash install -p python/fastapi.md
+ash status
 ```
 
-### 4. Update
+### 5. Uninstall a Skill
+Remove a skill's symlink.
+
+```bash
+ash uninstall expert
+```
+
+### 6. Update
 Pull the latest skills from the repository.
 
 ```bash
@@ -82,10 +88,12 @@ awesome-skills-hub/
 
 | Platform | Target Path | Support Level |
 | :--- | :--- | :--- |
-| **Antigravity** | `~/.agent/skills/` | ✅ Full Support |
-| **Claude CLI** | `~/.claude/skills/` | ✅ Full Support |
-| **Cursor** | `.cursor/rules/` | ✅ Project-level Support |
-| **Windsurf** | `~/.codeium/windsurf/cascade/` | 🚧 Planned |
+| **Google Antigravity** | `~/.agent/skills/` | ✅ Full Support |
+| **Cursor** | `~/.cursor/skills/` | ✅ Full Support |
+| **TRAE** | `~/.trae/skills/` | ✅ Full Support |
+| **Windsurf** | `~/.windsurf/skills/` | ✅ Full Support |
+| **VS Code + Copilot** | `~/.copilot/skills/` | ✅ Full Support |
+| **Claude Code** | `~/.claude/skills/` | ✅ Full Support |
 
 ## 🛠️ Contributing
 

@@ -4,85 +4,262 @@
 # ASH (Awesome-Skills-Hub) CLI
 # ==============================================================================
 # A lightweight package manager for AI IDE skills.
-# Author: Antigravity Agent
+# Author: Tiandee
+# Version: 1.0.0
 # ==============================================================================
+
+VERSION="1.0.0"
 
 # 颜色定义
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 # 基础路径配置
-# 获取脚本所在目录的上一级目录作为项目根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILLS_DIR="$PROJECT_ROOT/skills"
 
-# 目标路径配置 (用户配置目录)
+# 目标路径配置 (仅支持 Skills 的平台)
 HOME_DIR="$HOME"
-AGENT_SKILLS_DIR="$HOME_DIR/.agent/skills"
-CLAUDE_SKILLS_DIR="$HOME_DIR/.claude/skills"
+AGENT_SKILLS_DIR="$HOME_DIR/.agent/skills"       # Google Antigravity
+CURSOR_SKILLS_DIR="$HOME_DIR/.cursor/skills"     # Cursor
+TRAE_SKILLS_DIR="$HOME_DIR/.trae/skills"         # TRAE
+WINDSURF_SKILLS_DIR="$HOME_DIR/.windsurf/skills" # Windsurf
+COPILOT_SKILLS_DIR="$HOME_DIR/.copilot/skills"   # VS Code + Copilot
+CLAUDE_SKILLS_DIR="$HOME_DIR/.claude/skills"     # Claude Code
 
 # ------------------------------------------------------------------------------
 # 帮助函数
 # ------------------------------------------------------------------------------
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_info() { echo -e "${BLUE}[信息]${NC} $1"; }
+log_success() { echo -e "${GREEN}[成功]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
+log_error() { echo -e "${RED}[错误]${NC} $1"; }
+
+show_version() {
+    echo -e "${CYAN}ASH (Awesome-Skills-Hub) v${VERSION}${NC}"
+    echo "AI IDE 技能管理工具"
+}
 
 show_help() {
-    echo -e "Usage: ash <command> [args]"
+    show_version
     echo ""
-    echo "Commands:"
-    echo "  init              Initialize directories and detect IDEs"
-    echo "  list              List all available skills"
-    echo "  install <name>    Install a skill (creates symlink)"
-    echo "     -g, --global   Install globally (Antigravity/Claude) [Default]"
-    echo "     -p, --project  Install to current project (.cursor/rules)"
-    echo "  sync              Update skills repository (git pull)"
+    echo -e "${YELLOW}用法:${NC} ash <命令> [参数]"
     echo ""
+    echo -e "${YELLOW}命令:${NC}"
+    echo "  init              初始化环境并检测已安装的 IDE"
+    echo "  list              列出所有可用技能"
+    echo "  status            显示已安装的技能"
+    echo "  install <name>    安装技能 (创建软链接到所有已检测的 IDE)"
+    echo "  uninstall <name>  卸载技能 (删除软链接)"
+    echo "  sync              同步更新技能仓库 (git pull)"
+    echo ""
+    echo -e "${YELLOW}选项:${NC}"
+    echo "  -v, --version     显示版本信息"
+    echo "  -h, --help        显示帮助信息"
+    echo ""
+    echo -e "${YELLOW}示例:${NC}"
+    echo "  ash init                      # 初始化并检测 IDE"
+    echo "  ash list                      # 查看可用技能"
+    echo "  ash install java/expert       # 安装技能"
+    echo "  ash status                    # 查看已安装技能"
+    echo "  ash uninstall expert          # 卸载技能"
+    echo ""
+}
+
+# ------------------------------------------------------------------------------
+# IDE Detection Logic
+# ------------------------------------------------------------------------------
+detect_ide() {
+    local name="$1"
+    local check_dir="$2"
+    local check_cmd="$3"
+    local init_action="$4"
+
+    local found=0
+    if [ -n "$check_dir" ] && [ -d "$check_dir" ]; then
+        found=1
+    elif [ -n "$check_cmd" ] && command -v "$check_cmd" &> /dev/null; then
+        found=1
+    fi
+
+    if [ $found -eq 1 ]; then
+        log_success "检测到 $name"
+        if [ -n "$init_action" ]; then
+            eval "$init_action"
+        fi
+        return 0
+    fi
+    return 1
 }
 
 # ------------------------------------------------------------------------------
 # Command: init
 # ------------------------------------------------------------------------------
 cmd_init() {
-    log_info "Initializing ASH environment..."
+    log_info "正在初始化 ASH 环境..."
     
-    # 检测 Antigravity
-    if [ -d "$HOME_DIR/.agent" ]; then
-        log_success "Detected Antigravity Agent (~/.agent)"
-        mkdir -p "$AGENT_SKILLS_DIR"
-    fi
-    
-    # 检测 Claude
-    if [ -d "$HOME_DIR/.claude" ]; then
-        log_success "Detected Claude CLI (~/.claude)"
-        mkdir -p "$CLAUDE_SKILLS_DIR"
-    fi
-    
-    # 创建方便调用的软链 (可选，暂不污染 /usr/local/bin)
-    # 此处仅做目录检查
-    
-    log_success "Initialization complete."
+    # 1. Google Antigravity
+    detect_ide "Google Antigravity" "$HOME_DIR/.agent" "" "mkdir -p \"$AGENT_SKILLS_DIR\""
+
+    # 2. Cursor
+    detect_ide "Cursor" "$HOME_DIR/.cursor" "cursor" "mkdir -p \"$CURSOR_SKILLS_DIR\""
+
+    # 3. TRAE
+    detect_ide "TRAE" "$HOME_DIR/.trae" "trae" "mkdir -p \"$TRAE_SKILLS_DIR\""
+
+    # 4. Windsurf
+    detect_ide "Windsurf" "$HOME_DIR/.windsurf" "windsurf" "mkdir -p \"$WINDSURF_SKILLS_DIR\""
+
+    # 5. VS Code + Copilot
+    detect_ide "VS Code + Copilot" "$HOME_DIR/.copilot" "" "mkdir -p \"$COPILOT_SKILLS_DIR\""
+
+    # 6. Claude Code
+    detect_ide "Claude Code" "$HOME_DIR/.claude" "claude" "mkdir -p \"$CLAUDE_SKILLS_DIR\""
+
+    log_success "初始化完成。"
 }
 
 # ------------------------------------------------------------------------------
 # Command: list
 # ------------------------------------------------------------------------------
 cmd_list() {
-    log_info "Available Skills:"
-    # 使用 find 查找所有 .md 文件，排除 README
-    find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | while read -r file; do
-        # 获取相对路径作为技能名称 (例如 java/expert.md)
+    log_info "可用技能列表:"
+    echo ""
+    
+    local count=0
+    while IFS= read -r file; do
         rel_path="${file#$SKILLS_DIR/}"
-        # 获取文件内的第一行描述 (尝试解析 YAML 或 Markdown Title)
-        # 简单起见，暂只显示文件名
-        echo "  - $rel_path"
-    done
+        # 尝试获取第一行作为描述
+        first_line=$(head -n 1 "$file" 2>/dev/null | sed 's/^#\s*//')
+        if [ -n "$first_line" ]; then
+            echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
+            echo -e "    $first_line"
+        else
+            echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
+        fi
+        ((count++))
+    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
+    
+    echo ""
+    log_info "共 $count 个技能可用"
+}
+
+# ------------------------------------------------------------------------------
+# Command: status
+# ------------------------------------------------------------------------------
+cmd_status() {
+    log_info "已安装技能状态:"
+    echo ""
+    
+    local found=0
+    
+    # Check Antigravity
+    if [ -d "$AGENT_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}Antigravity (~/.agent/skills):${NC}"
+        for link in "$AGENT_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
+    
+    found=0
+    # Check Cursor
+    if [ -d "$CURSOR_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}Cursor (~/.cursor/skills):${NC}"
+        for link in "$CURSOR_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
+
+    found=0
+    # Check TRAE
+    if [ -d "$TRAE_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}TRAE (~/.trae/skills):${NC}"
+        for link in "$TRAE_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
+
+    found=0
+    # Check Windsurf
+    if [ -d "$WINDSURF_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}Windsurf (~/.windsurf/skills):${NC}"
+        for link in "$WINDSURF_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
+
+    found=0
+    # Check Copilot
+    if [ -d "$COPILOT_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}Copilot (~/.copilot/skills):${NC}"
+        for link in "$COPILOT_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
+
+    found=0
+    # Check Claude
+    if [ -d "$CLAUDE_SKILLS_DIR" ]; then
+        echo -e "  ${CYAN}Claude (~/.claude/skills):${NC}"
+        for link in "$CLAUDE_SKILLS_DIR"/*.md; do
+            if [ -L "$link" ]; then
+                local target=$(readlink "$link")
+                local name=$(basename "$link")
+                echo -e "    ${GREEN}•${NC} $name -> $target"
+                ((found++))
+            fi
+        done 2>/dev/null
+        if [ $found -eq 0 ]; then
+            echo -e "    ${YELLOW}(无)${NC}"
+        fi
+    fi
+    
+    echo ""
 }
 
 # ------------------------------------------------------------------------------
@@ -90,66 +267,146 @@ cmd_list() {
 # ------------------------------------------------------------------------------
 cmd_install() {
     local skill_name="$1"
-    local mode="global"
-    
-    # 参数解析 (简单处理)
-    if [[ "$2" == "-p" || "$2" == "--project" ]]; then
-        mode="project"
-    fi
     
     if [ -z "$skill_name" ]; then
-        log_error "Please specify a skill name (e.g., java/expert.md)"
+        log_error "请指定技能名称 (例如: java/expert 或 java/expert.md)"
         return 1
     fi
     
     local source_file="$SKILLS_DIR/$skill_name"
     if [ ! -f "$source_file" ]; then
-        # 尝试自动补全后缀
         if [ -f "${source_file}.md" ]; then
             source_file="${source_file}.md"
         else
-            log_error "Skill not found: $skill_name"
+            log_error "技能未找到: $skill_name"
+            log_info "使用 'ash list' 查看可用技能"
             return 1
         fi
     fi
     
-    # 确定目标目录
-    if [ "$mode" == "global" ]; then
-        # 全局安装：链接到 .agent/skills 和 .claude/skills
-        local target_name="$(basename "$source_file" .md)" # 提取文件名及其目录结构比较复杂，暂时只用 basename
-        # 这里为了避免重名，可以考虑保留目录结构，或者 flat 化
-        # 暂时 flat 化，例如 java/expert.md -> expert
-        
-        # 1. Link to Antigravity
-        if [ -d "$AGENT_SKILLS_DIR" ]; then
-            # Antigravity 技能通常是一个文件夹包着 SKILL.md，或者直接是 .md
-            # 简单起见，我们链接为文件：~/.agent/skills/expert.md
-            local target_path="$AGENT_SKILLS_DIR/$(basename "$source_file")"
-            ln -sf "$source_file" "$target_path"
-            log_success "Linked to Antigravity: $target_path"
-        fi
-        
-        # 2. Link to Claude
-        if [ -d "$CLAUDE_SKILLS_DIR" ]; then
-            local target_path="$CLAUDE_SKILLS_DIR/$(basename "$source_file")"
-            ln -sf "$source_file" "$target_path"
-            log_success "Linked to Claude: $target_path"
-        fi
-        
-    elif [ "$mode" == "project" ]; then
-        # 项目级安装：链接到 .cursor/rules 或 .windsurfrules
-        local cursor_dir=".cursor/rules"
-        mkdir -p "$cursor_dir"
-        local target_path="$cursor_dir/$(basename "$source_file")"
-        if [ -f "$source_file" ]; then
-             # Cursor 需要 .mdc 扩展名吗？通常 .md 也可以。
-             # 注意：如果是为了 Cursor，可能需要转换内容（去掉 YAML），但软链改不了内容。
-             # MVP 阶段直接软链。
-             ln -sf "$source_file" "$target_path"
-             log_success "Linked to Project (Cursor): $target_path"
-        else
-             log_error "Source file issue."
-        fi
+    local installed=0
+    
+    # Link to Antigravity
+    if [ -d "$AGENT_SKILLS_DIR" ]; then
+        local target_path="$AGENT_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 Antigravity: $target_path"
+        ((installed++))
+    fi
+    
+    # Link to Cursor
+    if [ -d "$CURSOR_SKILLS_DIR" ]; then
+        local target_path="$CURSOR_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 Cursor: $target_path"
+        ((installed++))
+    fi
+
+    # Link to TRAE
+    if [ -d "$TRAE_SKILLS_DIR" ]; then
+        local target_path="$TRAE_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 TRAE: $target_path"
+        ((installed++))
+    fi
+
+    # Link to Windsurf
+    if [ -d "$WINDSURF_SKILLS_DIR" ]; then
+        local target_path="$WINDSURF_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 Windsurf: $target_path"
+        ((installed++))
+    fi
+
+    # Link to VS Code + Copilot
+    if [ -d "$COPILOT_SKILLS_DIR" ]; then
+        local target_path="$COPILOT_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 Copilot: $target_path"
+        ((installed++))
+    fi
+
+    # Link to Claude Code
+    if [ -d "$CLAUDE_SKILLS_DIR" ]; then
+        local target_path="$CLAUDE_SKILLS_DIR/$(basename "$source_file")"
+        ln -sf "$source_file" "$target_path"
+        log_success "已链接到 Claude: $target_path"
+        ((installed++))
+    fi
+    
+    if [ $installed -eq 0 ]; then
+        log_warn "未找到可安装的目标目录，请先运行 'ash init'"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Command: uninstall
+# ------------------------------------------------------------------------------
+cmd_uninstall() {
+    local skill_name="$1"
+    
+    if [ -z "$skill_name" ]; then
+        log_error "请指定要卸载的技能名称 (例如: expert 或 expert.md)"
+        return 1
+    fi
+    
+    # 自动补全 .md 后缀
+    if [[ "$skill_name" != *.md ]]; then
+        skill_name="${skill_name}.md"
+    fi
+    
+    local removed=0
+    
+    # Remove from Antigravity
+    local agent_link="$AGENT_SKILLS_DIR/$skill_name"
+    if [ -L "$agent_link" ]; then
+        rm "$agent_link"
+        log_success "已从 Antigravity 移除: $skill_name"
+        ((removed++))
+    fi
+    
+    # Remove from Cursor
+    local cursor_link="$CURSOR_SKILLS_DIR/$skill_name"
+    if [ -L "$cursor_link" ]; then
+        rm "$cursor_link"
+        log_success "已从 Cursor 移除: $skill_name"
+        ((removed++))
+    fi
+
+    # Remove from TRAE
+    local trae_link="$TRAE_SKILLS_DIR/$skill_name"
+    if [ -L "$trae_link" ]; then
+        rm "$trae_link"
+        log_success "已从 TRAE 移除: $skill_name"
+        ((removed++))
+    fi
+
+    # Remove from Windsurf
+    local windsurf_link="$WINDSURF_SKILLS_DIR/$skill_name"
+    if [ -L "$windsurf_link" ]; then
+        rm "$windsurf_link"
+        log_success "已从 Windsurf 移除: $skill_name"
+        ((removed++))
+    fi
+
+    # Remove from Copilot
+    local copilot_link="$COPILOT_SKILLS_DIR/$skill_name"
+    if [ -L "$copilot_link" ]; then
+        rm "$copilot_link"
+        log_success "已从 Copilot 移除: $skill_name"
+        ((removed++))
+    fi
+
+    # Remove from Claude
+    local claude_link="$CLAUDE_SKILLS_DIR/$skill_name"
+    if [ -L "$claude_link" ]; then
+        rm "$claude_link"
+        log_success "已从 Claude 移除: $skill_name"
+        ((removed++))
+    fi
+    
+    if [ $removed -eq 0 ]; then
+        log_warn "未找到已安装的技能: $skill_name"
     fi
 }
 
@@ -163,13 +420,27 @@ case "$1" in
     list)
         cmd_list
         ;;
+    status)
+        cmd_status
+        ;;
     install)
         shift
         cmd_install "$@"
         ;;
+    uninstall)
+        shift
+        cmd_uninstall "$@"
+        ;;
     sync)
-        log_info "Syncing repository..."
+        log_info "正在同步技能仓库..."
         git -C "$PROJECT_ROOT" pull
+        log_success "同步完成。"
+        ;;
+    -v|--version)
+        show_version
+        ;;
+    -h|--help)
+        show_help
         ;;
     *)
         show_help
