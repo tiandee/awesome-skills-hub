@@ -10,7 +10,8 @@
 
 - **一次编写，到处运行**：只需维护一份技能文件，即可同步到所有主流 AI IDE。
 - **软链接驱动**：仓库中的更新会立即反映在所有连接的 IDE 中，无需手动同步。
-- **CLI 工具**：提供简洁的 `ash` 命令，轻松管理技能。
+- **智能交互**：支持智能路径解析、批量操作以及人性化的拼写纠错建议。
+- **CLI 工具**：提供简洁、专业的 `ash` 命令，轻松管理技能。
 
 ## 📦 安装指南
 
@@ -27,8 +28,9 @@ source ~/.zshrc
 ```
 
 **安装脚本将自动执行：**
-1. 检测并初始化本地 AI IDE 环境。
-2. 将 `ash` 自动添加到您的环境变量路径 (`~/.zshrc` 或 `~/.bashrc`)。
+1. 检测并初始化本地所有主流 AI IDE 环境。
+2. 自动配置环境变量，支持 **Zsh**, **Bash** 和 **Fish**。
+3. 实现全局命令 `ash` 的一键访问。
 
 ### 2. 环境初始化 (可选)
 如果您以后安装了新的 IDE，只需运行：
@@ -45,39 +47,25 @@ ash init
 ash list
 ```
 
-**内置分类包括：**
-- `productivity/` (pdf, xlsx, docx, pptx 等)
-- `creative/` (algorithmic-art, canvas-design 等)
-- `development/` (mcp-builder, webapp-testing 等)
-- `frontend/` (frontend-design 等)
-- `business/` (brand-guidelines, internal-comms 等)
-
 ### 2. 查看技能详情
-如果您想了解某个技能的详细用途、触发词或查看其内容预览，请使用 `info` 命令：
+了解某个技能的详细用途、触发词或内容预览：
 
 ```bash
-ash info pdf
-```
-
-### 3. 搜索技能
-使用关键词快速查找。
-
-```bash
-ash search pdf
+ash info pdf       # 支持模糊匹配名称
 ```
 
 ### 3. 安装技能
-将技能安装（链接）到所有检测到的 IDE。
+将技能安装（链接）到所有检测到的 IDE。支持**智能路径解析**，您无需输入完整路径。
 
 ```bash
-ash install productivity/pdf.md
+ash install pdf           # 智能通过名称安装
+ash install --all         # 一键同步所有 16+ 技能到所有 IDE
 ```
 
-### 4. 查看状态
-查看当前已安装的技能及其映射关系。
-
+### 4. 状态与搜索
 ```bash
-ash status
+ash search web            # 关键词搜索
+ash status                # 查看当前安装映射状态
 ```
 
 ### 5. 卸载技能
@@ -94,6 +82,11 @@ ash uninstall --all       # 卸载所有已安装技能
 ```bash
 ash sync
 ```
+
+## 🧩 交互亮点
+
+- **智能纠错**：输错命令时（如 `ash intall`），工具会智能提示：“您是不是想输入 `ash install`？”
+- **透明反馈**：批量操作时提供清晰的 IDE 级汇总汇总报告，确保操作可审计。
 
 ## 🤝 支持平台
 

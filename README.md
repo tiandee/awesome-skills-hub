@@ -17,9 +17,10 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 ## 🚀 Features
 
 - **Centralized Management**: Keep all your prompts in one Git repository.
-- **Cross-Platform**: Supports **Antigravity**, **Cursor**, **Windsurf**, and **Claude CLI**.
-- **Symlink-Based**: Updates in the repository immediately reflect in all your connected IDEs. No manual syncing required.
-- **CLI Tool**: Simple `ash` command to manage installations.
+- **Cross-Platform**: Supports **Antigravity**, **Cursor**, **Windsurf**, **TRAE**, and **Claude CLI**.
+- **Symlink-Based**: Updates in the repository immediately reflect in all your connected IDEs.
+- **Smart Interaction**: Name-based installation, batch operations, and "Did you mean?" suggestions.
+- **CLI Tool**: Professional `ash` command to manage your AI workspace.
 
 ### 1. Quick Install
 Clone the repository and run the installer:
@@ -36,53 +37,45 @@ bash install.sh
 source ~/.zshrc
 ```
 
+**The installer will:**
+1. Detect and initialize all mainstream AI IDE environments.
+2. Configure environment variables for **Zsh**, **Bash**, and **Fish**.
+3. Enable global `ash` command access instantly.
+
 ### 1. Browse Skill Library
-Browse official Anthropic skills automatically categorized by function:
+Browse official Anthropic skills automatically categorized:
 
 ```bash
 ash list
 ```
 
-**Built-in categories include:**
-- `productivity/` (pdf, xlsx, docx, pptx, etc.)
-- `creative/` (algorithmic-art, canvas-design, etc.)
-- `development/` (mcp-builder, webapp-testing, etc.)
-- `frontend/` (frontend-design, etc.)
-- `business/` (brand-guidelines, etc.)
-
 ### 2. View Skill Details
-To see the detailed description, triggers, and a content preview of a specific skill:
+Get detailed descriptions, triggers, and content previews:
 
 ```bash
-ash info pdf
-```
-
-### 3. Search Skills
-Find skills by keywords.
-
-```bash
-ash search pdf
+ash info pdf       # Supports smart name matching
 ```
 
 ### 3. Install a Skill
-Link a skill to your global AI configuration.
+Link a skill to all detected IDEs. Support **Smart Path Resolution**—no need to type full paths.
 
 ```bash
-ash install productivity/pdf.md
+ash install pdf           # Install by name
+ash install --all         # Sync all 16+ skills to all IDEs at once
 ```
 
-### 4. Check Status
-See which skills are currently installed.
-
+### 4. Search & Status
 ```bash
-ash status
+ash search web            # Keyword search
+ash status                # Check current installation map
 ```
 
-### 5. Uninstall a Skill
-Remove a skill's symlink.
+### 5. Uninstall
+Remove symlinks with ease.
 
 ```bash
-ash uninstall pdf.md           # Uninstall specific skill
+ash uninstall pdf.md      # Uninstall specific skill
+ash uninstall --all       # Clean up everything everywhere
 ```
 
 ### 6. Update
@@ -105,6 +98,11 @@ awesome-skills-hub/
 ├── inventory.json           # (Coming Soon) Local state tracking
 └── install.sh               # Setup script
 ```
+
+## 🧩 UX Highlights
+
+- **Smart Suggestions**: Type a typo (e.g., `ash intall`) and get a "Did you mean?" hint.
+- **Transparent Feedback**: Detailed IDE-level reports for batch operations.
 
 ## 🤝 Supported Platforms
 
