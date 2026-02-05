@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.14"
+VERSION="1.1.15"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -25,7 +25,13 @@ log_warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
 log_error() { echo -e "${RED}[错误]${NC} $1"; }
 
 # 基础路径配置
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 ASH_HOME="$HOME/.ash"
 SKILLS_DIR="$ASH_HOME/skills"
 
@@ -55,7 +61,8 @@ if [ ! -d "$SKILLS_DIR" ]; then
         # Critical Debug Logic: why can't we find the skills?
         # log_warn "DEBUG: 未在安装包内找到 skills 目录: $LOCAL_SKILLS"
         # ls -F "$PROJECT_ROOT" # Try to see what IS there
-        :
+        log_warn "未在安装包内找到 skills 目录: $LOCAL_SKILLS"
+        log_warn "您可能需要运行 'ash sync' 或 'git clone' 来获取技能。"
     fi
 fi
 
