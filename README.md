@@ -145,11 +145,21 @@ Pull the latest skills from the repository and sync them to your global home.
 ash sync
 ```
 
-### 9. Upgrade CLI Tool
-Get the latest features (like Project Mode) by updating the NPM package.
+### 9. CLI Maintenance
+Useful commands for managing the `ash` tool itself:
 
 ```bash
+# Upgrade to the latest version
 npm update -g awesome-skills-hub
+
+# Check current installed version
+npm list -g awesome-skills-hub
+
+# Check latest available version on NPM
+npm view awesome-skills-hub version
+
+# Uninstall CLI tool
+npm uninstall -g awesome-skills-hub
 ```
 
 ## 📂 System Architecture

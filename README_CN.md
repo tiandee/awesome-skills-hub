@@ -144,11 +144,21 @@ ash uninstall --all       # (同 clean --all)
 ash sync
 ```
 
-### 9. 升级 CLI 工具
-获取最新功能（如 Project Mode）请更新 NPM 包：
+### 9. CLI 工具维护
+管理 `ash` 工具本身的实用指令：
 
 ```bash
+# 升级到最新版本
 npm update -g awesome-skills-hub
+
+# 查看当前已安装版本
+npm list -g awesome-skills-hub
+
+# 查询远程最新版本号
+npm view awesome-skills-hub version
+
+# 卸载 CLI 工具
+npm uninstall -g awesome-skills-hub
 ```
 
 ## 🧩 目录架构
