@@ -136,7 +136,7 @@ ash add --all -p             # Install ALL skills to project
 ![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
 
-### 5. Vercel Labs Integration 🆕
+### 5. Vercel Labs Integration
 **ASH can automatically detect and import skills from the Vercel ecosystem.**
 Vercel's official `npx skills` tool downloads skills to `~/.agents/skills`. ASH can scan this directory and **instantly bridge** those high-quality skills to all your IDEs.
 
