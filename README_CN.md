@@ -24,12 +24,14 @@
 ### 1. 免安装试用 (Zero-Install)
 无需安装，直接通过 `npx` 运行：
 
+> **💡 小贴士**: 您可以使用短别名 `npx askill` 代替冗长的 `npx awesome-skills-hub`。
+
 ```bash
 # 1. 浏览技能库
-npx awesome-skills-hub list
+npx askill list
 
 # 2. 安装技能 (自动初始化并同步到 IDE)
-npx awesome-skills-hub install pdf
+npx askill install pdf
 ```
 
 > **💡 小贴士**: 免安装模式仅限可以使用**内置技能**。如需**管理完整技能库**（包括添加自定义技能）并获得秒级响应，请务必使用 **快速安装**。

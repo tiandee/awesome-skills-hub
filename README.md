@@ -32,12 +32,14 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 ### 1. Zero-Install (Try it out)
 Run instantly without installing anything:
 
+> **💡 Pro Tip**: You can use the short alias `npx askill` instead of `npx awesome-skills-hub`.
+
 ```bash
 # 1. Browse Skill Library
-npx awesome-skills-hub list
+npx askill list
 
 # 2. Install a Skill (Auto-initializes & syncs to IDEs)
-npx awesome-skills-hub install pdf
+npx askill install pdf
 ```
 
 > **💡 Pro Tip**: Zero-Install mode is primarily for trying **Built-in Skills**. To **manage your full library** (including adding custom skills) and unlock offline speed, please use **Quick Install**.

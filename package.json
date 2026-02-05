@@ -5,7 +5,8 @@
     "main": "index.js",
     "bin": {
         "ash": "bin/ash-wrapper.js",
-        "awesome-skills-hub": "./bin/ash"
+        "awesome-skills-hub": "./bin/ash",
+        "askill": "./bin/ash"
     },
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
