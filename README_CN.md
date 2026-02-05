@@ -102,15 +102,23 @@ ash search web            # 关键词搜索
 ash status                # 查看当前安装映射状态
 ```
 
-### 5. 卸载技能
+### 5. 清理与重置
+一键清空指定 IDE 或所有 IDE 的技能链接（不会删除源码）。
+
+```bash
+ash clean cursor          # 仅清空 Cursor 的技能
+ash clean --all           # 清空所有 IDE 的技能 (核弹选项)
+```
+
+### 6. 卸载技能
 移除技能链接。支持 `--all` 标志一键清理。
 
 ```bash
-ash uninstall pdf.md      # 卸载指定技能
-ash uninstall --all       # 卸载所有已安装技能
+ash uninstall pdf         # 卸载指定技能
+ash uninstall --all       # (同 clean --all)
 ```
 
-### 6. 同步更新
+### 7. 同步更新
 从源码仓库或远程同步最新的技能到全局目录。
 
 ```bash
@@ -121,9 +129,23 @@ ash sync
 
 - **软件家目录 (`ASH_HOME`)**: `~/.ash` (或 `$env:USERPROFILE\.ash`)
 - **技能存储仓**: `~/.ash/skills/`
-- **IDE 链接目标**: 所有 IDE 中的软链接均精准指向上述全局目录，确保极高的系统稳定性。
+- **IDE 链接目标**: 所有 IDE 中的软链接均精准指向上述全局目录。
 
-## 🧩 交互亮点
+## 🧩 仓库结构
+
+```text
+awesome-skills-hub/
+├── skills/                  # 技能库 (扁平化结构)
+│   ├── pdf/                 # 技能: PDF 专家
+│   │   ├── SKILL.md         # 核心提示词与指令
+│   │   └── scripts/         # 关联脚本
+│   ├── react/               # 技能: React 专家
+│   │   └── SKILL.md
+│   └── ...
+├── bin/
+│   └── ash                  # CLI 可执行文件
+└── install.sh               # 安装脚本
+```
 
 - **智能纠错**：输错命令时（如 `ash intall`），工具会智能提示：“您是不是想输入 `ash install`？”
 - **透明反馈**：批量操作时提供清晰的 IDE 级汇总汇总报告，确保操作可审计。

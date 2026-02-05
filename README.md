@@ -103,15 +103,23 @@ ash search web            # Keyword search
 ash status                # Check current installation map
 ```
 
-### 5. Uninstall
-Remove symlinks with ease.
+### 5. Clean & Reset
+Instantly clear skill links from distinct IDEs or all of them.
 
 ```bash
-ash uninstall pdf.md      # Uninstall specific skill
-ash uninstall --all       # Clean up everything everywhere
+ash clean cursor          # Clear Cursor skills only
+ash clean --all           # Clear ALL IDE skills (Nuclear option)
 ```
 
-### 6. Update
+### 6. Uninstall
+Remove specific symlinks.
+
+```bash
+ash uninstall pdf         # Uninstall specific skill
+ash uninstall --all       # (Same as clean --all)
+```
+
+### 7. Update
 Pull the latest skills from the repository and sync them to your global home.
 
 ```bash
@@ -122,19 +130,21 @@ ash sync
 
 - **ASH Home**: `~/.ash` (or `$env:USERPROFILE\.ash`)
 - **Global Skills Hub**: `~/.ash/skills/`
-- **Persistent Links**: All IDE symlinks point to this stable global path, not the temporary clone directory.
+- **Persistent Links**: All IDE symlinks point to this stable global path.
 
 ## 📂 Repository Structure
 
 ```text
 awesome-skills-hub/
-├── skills/                  # The Skills Library
-│   ├── java/                # Java-related skills
-│   ├── python/              # Python-related skills
-│   └── general/             # General coding rules
+├── skills/                  # The Skills Library (Flat Structure)
+│   ├── pdf/                 # Skill: PDF Expert
+│   │   ├── SKILL.md         # Main Prompt/Instruction
+│   │   └── scripts/         # Associated scripts
+│   ├── react/               # Skill: React Expert
+│   │   └── SKILL.md
+│   └── ...
 ├── bin/
 │   └── ash                  # CLI Executable
-├── inventory.json           # (Coming Soon) Local state tracking
 └── install.sh               # Setup script
 ```
 
