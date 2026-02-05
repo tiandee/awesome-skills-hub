@@ -1,60 +1,61 @@
 ---
 name: skill-finder
-description: A meta-skill that helps the Agent find and install new skills when it encounters a task it cannot perform.
+description: A meta-skill that helps the Agent find and install new skills autonomously when it encounters a task it cannot perform.
 ---
 
-# Skill Finder (Meta-Skill)
+# Skill Manager (Meta-Skill)
 
 ## Purpose
-This skill empowers you (the Agent) to extend your own capabilities by finding and installing new tools from the Awesome Skills Hub (ASH) or the Vercel Labs ecosystem.
+This system skill grants you the ability to **self-extend** your capabilities. When you encounter a task you cannot solve with your current tools, use this skill to find and install the necessary tools dynamically.
 
-## When to Use
-Activate this skill when:
-1.  The user asks for a capability you do not currently have (e.g., "Create a PDF", "Generate a video", "Design a UI").
-2.  The user explicit asks you to find a tool or skill.
-3.  You encounter an error indicating a missing tool.
+## Triggers & Activation
+Activate this behavior when:
+1.  **Missing Capability**: User asks for "PDF generation", "Video analysis", etc., and you lack a corresponding tool.
+2.  **Explicit Request**: User asks you to "find a tool to do X".
+3.  **Error Recovery**: You try to run a command and get "command not found".
 
-## Instructions
-When you realize you need a new skill, follow these steps:
+## Protocol: The Self-Extension Loop
 
-1.  **Search Locally**:
-    Run `ash search <keyword>` to see if a relevant skill exists in the official registry.
-    
-    ```bash
-    ash search <keyword>
-    ```
+When you need a new skill, follow this **4-Step Loop**:
 
-2.  **Analyze Results**:
-    - If a matching skill is found (e.g., `pdf` for PDF creation), suggest it to the user.
-    - Explain that installing it will give you the requested capability.
-
-3.  **Propose Installation**:
-    Ask the user if they want to install it.
-    
-    ```bash
-    ash add <skill-name>
-    ```
-    
-4.  **External Search (Fallback)**:
-    If `ash search` yields no results, tell the user:
-    "I can't find a local skill for this, but you might find one on **Skill Hub CN** (https://www.skill-cn.com) or GitHub."
-    
-    You can suggest they run:
-    ```bash
-    # Install from GitHub
-    ash add user/repo
-    
-    # Or from Vercel Ecosystem
-    npx skills add user/repo
-    ```
-
-## Example Interaction
-**User**: "Can you generate a PDF report for me?"
-**Agent (Thinking)**: I don't have a `create_pdf` tool. Let me check.
-**Agent (Action)**: `ash search pdf`
-**System**: 
+### 1. **SEARCH** (Discover)
+Run `ash search` to look for official skills in the registry.
+```bash
+ash search <keywords>
 ```
-Found skills:
-- pdf (Handling PDF extraction and creation)
+
+### 2. **EVALUATE** (Analyze)
+- Analyze the output description.
+- **Good Match**: If a skill clearly solves the problem, proceed to Install.
+- **No Match**: Inform the user you couldn't find a local skill, and suggest searching GitHub (`ash add user/repo`).
+
+### 3. **INSTALL** (Acquire)
+Install the chosen skill.
+```bash
+ash add <skill-name>
 ```
-**Agent (Response)**: "I found a `pdf` skill that can help with that. Shall I install it for you? Run: `ash add pdf`"
+*Note: This command will automatically link the skill to your environment. No restart is usually required.*
+
+### 4. **EXECUTE** (Apply)
+Once installed, **immediately use the new tool** to fulfill the user's original request. Do not just stop at installation.
+
+---
+
+## Example Scenario
+
+**User**: "Can you crop this image to 500x500?"
+**Agent Internal Monologue**: 
+*I don't have an image processing tool. Let me check the hub.*
+
+**Step 1: Search**
+`ash search image`
+
+**Step 2: Evaluate**
+*Output: `images basic-image-processing-tools`*
+*Match found: `images` skill looks relevant.*
+
+**Step 3: Install**
+`ash add images`
+
+**Step 4: Execute**
+*Now I can use the newly installed `crop_image` tool to satisfy the request.*
