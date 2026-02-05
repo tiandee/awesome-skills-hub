@@ -777,29 +777,21 @@ download_github_skill() {
         fi
     fi
     
-    # 4. Determine Skill Name & Validate (DISCOVERY MODE)
-    local skill_name=""
+    # 4. Validation & Discovery
+    local install_targets=()
     local is_valid_skill=0
     
     # Check if current path is a valid skill
-    if [ -f "$source_path/SKILL.md" ]; then
+    if [ -f "$source_path/SKILL.md" ] || [[ "$subdir" == *.md ]] || [ -f "$source_path/${repo}.md" ]; then
         is_valid_skill=1
-        skill_name=$(basename "$source_path")
-    elif [[ "$subdir" == *.md ]]; then
-         is_valid_skill=1
-         skill_name=$(basename "$source_path" .md)
-    elif [ -f "$source_path/${repo}.md" ]; then
-         is_valid_skill=1
-         skill_name="$repo"
-         source_path="$source_path/${repo}.md"
+        install_targets+=("$source_path")
     fi
     
     # --- Interactive Discovery Logic ---
     if [ $is_valid_skill -eq 0 ]; then
         log_info "检测到当前路径为技能合集容器 (Monorepo)，正在扫描内部技能..." >&2
         
-        # Find all SKILL.md files (max depth 3)
-        # Use process substitution or temp file to capture array safely
+        # Find all SKILL.md files (max depth 4)
         local candidates=()
         while IFS= read -r file; do
             candidates+=("$file")
@@ -814,9 +806,9 @@ download_github_skill() {
         elif [ $count -eq 1 ]; then
             # Auto-select the only one found
             local skill_file="${candidates[0]}"
-            source_path=$(dirname "$skill_file")
-            skill_name=$(basename "$source_path")
-            log_success "发现唯一技能: ${CYAN}$skill_name${NC}" >&2
+            local target_path=$(dirname "$skill_file")
+            log_success "发现唯一技能: ${CYAN}$(basename "$target_path")${NC}" >&2
+            install_targets+=("$target_path")
         else
             # Interactive Selection
             echo -e "\n${GREEN}发现 $count 个可用技能:${NC}" >&2
@@ -830,42 +822,48 @@ download_github_skill() {
             
             echo "" >&2
             local selection
-            # Read from /dev/tty to bypass stdout capture
+            # Read from /dev/tty
             if [ -t 0 ]; then
-                 read -p "请选择要安装的技能编号 [1-$count]: " selection < /dev/tty
+                 read -p "请选择技能编号 (支持多选如 '1,3' 或 'all' 全部): " selection < /dev/tty
             else
-                 # Fallback for non-interactive / pipe
-                 # Try to read from current stdin if valid, otherwise impossible
-                 # But ash is likely interactive.
-                 # If we can't read from tty, fail.
-                 log_error "无法进行交互式选择 (非 TTY 环境)。请指定具体子目录。" >&2
+                 log_error "无法进行交互式选择 (非 TTY 环境)。" >&2
                  rm -rf "$tmp_dir"
                  return 1
             fi
-
-            if [[ ! "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "$count" ]; then
-                log_error "无效选择。" >&2
+            
+            # Parse Selection
+            local selected_indices=()
+            local selection_lower=$(echo "$selection" | tr '[:upper:]' '[:lower:]')
+            if [[ "$selection_lower" == "all" ]]; then
+                selected_indices=($(seq 1 $count))
+                log_success "已选择: 全部 $count 个技能" >&2
+            else
+                # Split by comma
+                IFS=',' read -ra ADDR <<< "$selection"
+                for idx in "${ADDR[@]}"; do
+                    # Trim spaces
+                    idx=$(echo "$idx" | xargs) 
+                    if [[ ! "$idx" =~ ^[0-9]+$ ]] || [ "$idx" -lt 1 ] || [ "$idx" -gt "$count" ]; then
+                        log_warn "忽略无效编号: $idx" >&2
+                    else
+                        selected_indices+=("$idx")
+                    fi
+                done
+            fi
+            
+            if [ ${#selected_indices[@]} -eq 0 ]; then
+                log_error "未选择任何有效技能。" >&2
                 rm -rf "$tmp_dir"
                 return 1
             fi
             
-            local selected_file="${candidates[$((selection-1))]}"
-            source_path=$(dirname "$selected_file")
-            skill_name=$(basename "$source_path")
-            log_success "已选择: ${CYAN}$skill_name${NC}" >&2
-        fi
-        
-        # Re-verify just in case
-        if [ ! -f "$source_path/SKILL.md" ]; then
-             # Should not happen
-              skill_name=$(basename "$source_path")
-        fi
-    else
-        # Fallback Name for valid skills detected earlier checks didn't catch specific name?
-        # Actually logic above sets skill_name.
-        # Just ensure it's set if we fell through here without discovery.
-        if [ -z "$skill_name" ]; then
-             skill_name=$(basename "$source_path")
+            for idx in "${selected_indices[@]}"; do
+                local s_file="${candidates[$((idx-1))]}"
+                local target_path=$(dirname "$s_file")
+                install_targets+=("$target_path")
+                local s_name=$(basename "$target_path")
+                log_success "已添加: ${CYAN}$s_name${NC}" >&2
+            done
         fi
     fi
     
@@ -873,41 +871,38 @@ download_github_skill() {
     local download_root="$SKILLS_DIR/downloaded"
     mkdir -p "$download_root"
     
-    # Create unique name: user__repo__subdir
-    local safe_subdir=$(echo "$subdir" | tr '/' '_')
-    [ -z "$safe_subdir" ] && safe_subdir="root"
-    local unique_name="${user_repo/\//__}__${safe_subdir}"
+    for src in "${install_targets[@]}"; do
+        # Determine Skill Name
+        local skill_name=""
+        if [ -f "$src/SKILL.md" ]; then
+             skill_name=$(basename "$src")
+        elif [[ "$src" == *.md ]]; then
+             skill_name=$(basename "$src" .md)
+        elif [ -f "$src/${repo}.md" ]; then
+             skill_name="$repo"
+             # If src is file
+             if [ -f "$src" ]; then 
+                 skill_name=$(basename "$src" .md)
+             fi
+        fi
+        
+        # Determine target path
+        if [ -f "$src" ]; then
+             local target_file="$download_root/${skill_name}.md"
+             mv "$src" "$target_file"
+             echo "$target_file"
+        else
+             local target_dir="$download_root/$skill_name"
+             # Conflict Handling: Overwrite/Merge (Silent Overwrite for batch ops)
+             if [ -d "$target_dir" ]; then
+                 rm -rf "$target_dir"
+             fi
+             mv "$src" "$target_dir"
+             echo "$target_dir"
+        fi
+    done
     
-    # If source is a file (single file skill)
-    if [ -f "$source_path" ]; then
-         local target_file="$download_root/${skill_name}.md"
-         mv "$source_path" "$target_file"
-         rm -rf "$tmp_dir"
-         echo "$target_file"
-         return 0
-    fi
-    
-    # If source is a directory
-    local target_dir="$download_root/$skill_name"
-    
-    # Check conflict
-    if [ -d "$target_dir" ]; then
-        log_warn "本地已存在同名技能: $skill_name" >&2
-        # Auto-confirm for now if non-interactive, or fail?
-        # Better to strictly require confirmation or use force flag (not implemented yet)
-        # For this context, let's try to ask, but since it's inside $() capture, input is tricky.
-        # Ideally we should use /dev/tty but that's complex.
-        # Fallback: Just fail if exists to be safe, or Force overwrite?
-        # Let's Fail with clearer message.
-        log_error "错误: 目标目录已存在且无法交互确认覆盖。" >&2
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-    
-    mv "$source_path" "$target_dir"
     rm -rf "$tmp_dir"
-    
-    echo "$target_dir"
     return 0
 }
 
@@ -1002,27 +997,89 @@ cmd_install() {
     fi
 
     local status=0
-    local skill_path=""
+    # Store output in a variable to handle multiple lines
+    local install_output=""
     
     # --- GitHub / Cloud Installer Logic ---
     # Regex: Detect 'user/repo' pattern (simple check: contains / and not starting with / or .)
     if [[ "$skill_name" =~ ^[a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+ ]]; then
-        skill_path=$(download_github_skill "$skill_name" "$skill_option")
+        install_output=$(download_github_skill "$skill_name" "$skill_option")
         status=$?
         
         if [ $status -ne 0 ]; then
             return 1
         fi
         
-        # Reset skill_name to the basename of downloaded skill for linking
-        skill_name=$(basename "$skill_path")
-        if [[ "$skill_name" == *.md ]]; then
-             skill_name="${skill_name%.md}"
-        fi
+        # Parse output line by line (support multi-select installation)
+        while IFS= read -r skill_path; do
+            if [ -z "$skill_path" ]; then continue; fi
+            
+            # Reset skill_name to the basename of downloaded skill for linking
+            local current_skill_name=$(basename "$skill_path")
+            if [[ "$current_skill_name" == *.md ]]; then
+                 current_skill_name="${current_skill_name%.md}"
+            fi
+            
+            log_success "下载成功: ${CYAN}$current_skill_name${NC}"
+            
+            # --- Auto-Init Check (Global Mode Only) ---
+            if [ "$mode" == "global" ]; then
+                check_and_auto_init
+            fi
+            
+            # --- Execution ---
+            if [ "$mode" == "project" ]; then
+                install_to_project "$skill_path" "$project_path"
+            else
+                # Global Install (Original Logic)
+                # Ensure install_skill_file uses absolute path or correct logic
+                # We need to call the logic block below for EACH skill.
+                # To avoid code duplication, it's better to extract the "install single global skill" logic
+                # But for now, let's inline or use the existing block context?
+                # The existing block L1051-L1085 is outside this if/else structure at the bottom.
+                # Refactoring Strategy:
+                # Move the "Execution" block (L1048+) into a helper function `install_globally_single`?
+                # Or just handle it here.
+                
+                # Let's call the bottom logic? No, the bottom logic is "Execution".
+                # If we loop here, we consume the execution.
+                # So we must perform the execution inside this loop.
+                
+                local filename=$(basename "$skill_path")
+                local rel_path="${skill_path#$SKILLS_DIR/}"
+                
+                log_success "已安装 ${CYAN}$filename${NC} ($rel_path)"
+                
+                local count=0
+                local updated_ides=()
+                local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+                local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+                
+                for i in "${!ides[@]}"; do
+                    local ide_name="${ides[$i]}"
+                    local dir="${dirs[$i]}"
+                    if [ -d "$dir" ]; then
+                        ln -sfn "$skill_path" "$dir/$filename"
+                        ((count++))
+                        updated_ides+=("$ide_name")
+                    fi
+                done
+                
+                if [ $count -gt 0 ]; then
+                     local ide_list_str=$(IFS=, ; echo "${updated_ides[*]}")
+                     ide_list_str=$(echo "$ide_list_str" | sed 's/,/, /g')
+                     echo -e "  ↳ 同步至 $count 个 IDE: [${GREEN}$ide_list_str${NC}]"
+                else
+                    log_warn "未检测到任何已初始化的 IDE 技能目录。"
+                fi
+            fi
+             
+        done <<< "$install_output"
+        return 0
         
-        log_success "下载成功: ${CYAN}$skill_name${NC}"
     else 
-        # --- Local Resolution Logic ---
+        # --- Local Resolution Logic (Single Skill) ---
+        local skill_path=""
         skill_path=$(resolve_skill_path "$skill_name")
         status=$?
     
@@ -1037,6 +1094,8 @@ cmd_install() {
             fi
             return 1
         fi
+        
+
     fi
 
     # --- Auto-Init Check (Global Mode Only) ---
