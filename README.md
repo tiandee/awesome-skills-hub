@@ -30,24 +30,14 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 ## 📦 Installation
 
 ### 1. Zero-Install (Try it out)
-Run instantly without installing anything (perfect for quick lookups):
+Run instantly without installing anything:
 
 ```bash
-# 1. Initialize (Detects IDEs & creates ~/.ash) - Run this first!
-npx awesome-skills-hub init
-
-# 2. Browse & Search
+# 1. Browse Skill Library
 npx awesome-skills-hub list
-npx awesome-skills-hub search web
 
-# 3. View Skill Details
-npx awesome-skills-hub info pdf
-
-# 4. Install a Skill (Syncs to all detected IDEs)
+# 2. Install a Skill (Auto-initializes & syncs to IDEs)
 npx awesome-skills-hub install pdf
-
-# 5. Hydrate All IDEs (Install everything)
-npx awesome-skills-hub install --all
 ```
 
 > **💡 Pro Tip**: Zero-Install mode is primarily for trying **Built-in Skills**. To **manage your full library** (including adding custom skills) and unlock offline speed, please use **Quick Install**.

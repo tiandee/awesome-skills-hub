@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.17"
+VERSION="1.1.18"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -672,6 +672,27 @@ install_to_project() {
 }
 
 # ------------------------------------------------------------------------------
+# Helper: Check and Auto-Init (Lazy Initialization)
+# ------------------------------------------------------------------------------
+check_and_auto_init() {
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    local initialized=0
+    
+    for dir in "${dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            initialized=1
+            break
+        fi
+    done
+
+    if [ $initialized -eq 0 ]; then
+        echo -e "${YELLOW}[提示] 检测到尚未初始化环境，正在自动执行初始化...${NC}"
+        cmd_init
+        echo ""
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Command: install
 # ------------------------------------------------------------------------------
 cmd_install() {
@@ -701,6 +722,11 @@ cmd_install() {
         log_error "请指定要安装的技能名称。"
         echo "用法: ash install <name> [-p [path]]"
         return 1
+    fi
+
+    # --- Auto-Init Check (Global Mode Only) ---
+    if [ "$mode" == "global" ]; then
+        check_and_auto_init
     fi
 
     # Handle --all

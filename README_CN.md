@@ -22,24 +22,14 @@
 ## 📦 安装指南
 
 ### 1. 免安装试用 (Zero-Install)
-无需安装，直接通过 `npx` 运行（适合尝鲜或临时查询）：
+无需安装，直接通过 `npx` 运行：
 
 ```bash
-# 1. 初始化环境 (检测 IDE 并创建 ~/.ash) - 首次请运行！
-npx awesome-skills-hub init
-
-# 2. 浏览与搜索
+# 1. 浏览技能库
 npx awesome-skills-hub list
-npx awesome-skills-hub search web
 
-# 3. 查看详情
-npx awesome-skills-hub info pdf
-
-# 4. 安装单个技能 (同步到所有已检测的 IDE)
+# 2. 安装技能 (自动初始化并同步到 IDE)
 npx awesome-skills-hub install pdf
-
-# 5. 一键安装所有技能 (Hydrate All)
-npx awesome-skills-hub install --all
 ```
 
 > **💡 小贴士**: 免安装模式仅限可以使用**内置技能**。如需**管理完整技能库**（包括添加自定义技能）并获得秒级响应，请务必使用 **快速安装**。
