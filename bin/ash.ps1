@@ -327,7 +327,7 @@ function Invoke-Sync {
         # Copy-Item -Path "$localSkills\*" -Destination $SKILLS_DIR -Recurse -Force
     } else {
         Write-LogWarn "当前是通过 NPM 或直接下载安装的，无法通过 Git 同步。"
-        Write-Host "💡 请使用 NPM 更新: npm update -g awesome-skills-hub" -ForegroundColor Cyan
+        Write-Host "💡 请使用 NPM 更新: npm update -g askill" -ForegroundColor Cyan
     }
 }
 

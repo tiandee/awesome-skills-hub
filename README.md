@@ -2,8 +2,8 @@
 
 > **"Write Once, Link Everywhere"** - The "Homebrew" for AI IDE Skills.
 
-[![NPM Version](https://img.shields.io/npm/v/awesome-skills-hub?color=red)](https://www.npmjs.com/package/awesome-skills-hub)
-[![License](https://img.shields.io/npm/l/awesome-skills-hub)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
+[![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
 
 **Awesome-Skills-Hub (ASH) 🚀**
 
@@ -49,7 +49,7 @@ npx askill install pdf
 **Via NPM (Cross-Platform):**
 ```bash
 # 1. Install globally (Unlocks the 'ash' command)
-npm install -g awesome-skills-hub
+npm install -g askill
 
 # 2. Initialize environment (Detects IDEs & creates ~/.ash)
 ash init

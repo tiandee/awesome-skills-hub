@@ -4,8 +4,8 @@
 
 [English](README.md) | **简体中文**
 
-[![NPM Version](https://img.shields.io/npm/v/awesome-skills-hub?color=red)](https://www.npmjs.com/package/awesome-skills-hub)
-[![License](https://img.shields.io/npm/l/awesome-skills-hub)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
+[![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
 
 ---
 
@@ -41,7 +41,7 @@ npx askill install pdf
 **通过 NPM (跨平台首选):**
 ```bash
 # 1. 全局安装 (获取 'ash' 命令，将其加入系统 PATH)
-npm install -g awesome-skills-hub
+npm install -g askill
 
 # 2. 初始化环境 (自动检测您的 IDE 并创建 ~/.ash 技能库)
 ash init
