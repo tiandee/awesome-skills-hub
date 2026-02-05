@@ -142,6 +142,18 @@ Vercel 官方推出了 `npx skills` 工具，它将技能下载到 `~/.agents/sk
    ```
    *(此时 ASH 会提示发现新技能，确认后即可在 Cursor/Windsurf 等工具中直接使用)*
 
+### 💡 资源推荐
+想要寻找优质的中文 Skill？推荐访问 **[Skill Hub 中国](https://www.skill-cn.com)**。
+该网站收录了大量高质量的 Prompt 技能，例如 Anthropic 官方的前端设计技能：
+
+```bash
+# 示例：安装 Anthropic 的 frontend-design 技能
+npx skills add https://github.com/anthropics/skills --skill frontend-design
+
+# 让 ASH 自动分发
+ash sync
+```
+
 ### 6. 状态与搜索
 ```bash
 ash search web            # 关键词搜索

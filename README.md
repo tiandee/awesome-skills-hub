@@ -150,6 +150,18 @@ Vercel's official `npx skills` tool downloads skills to `~/.agents/skills`. ASH 
    ```
    *(ASH will prompt you about the new skills found. Once confirmed, they are available in Cursor, Windsurf, etc.)*
 
+### 💡 Recommended Resources
+Looking for high-quality skills? Check out **[Skill Hub CN](https://www.skill-cn.com)**.
+It curates excellent skills, such as the official Anthropic Frontend Design skill:
+
+```bash
+# Example: Install Anthropic's frontend-design skill
+npx skills add https://github.com/anthropics/skills --skill frontend-design
+
+# Let ASH distribute it
+ash sync
+```
+
 ### 6. Search & Status
 ```bash
 ash search web            # Keyword search
