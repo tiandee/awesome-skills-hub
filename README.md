@@ -22,6 +22,7 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Dual-Scope Management**: Support both **Global Scope** (`~/.ash/skills`) and **Project Scope** (Project-local).
 - **Universal IDE Bridge**: Automatically compatibilizes with **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot).
 - **Centralized "Homebrew"**: Keep all your prompts in one place, independent of IDE configs.
+- **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
 - **Smart Interaction**: Name-based installation, batch operations, and "Did you mean?" suggestions.
 
 ---
@@ -29,23 +30,43 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 ## 📦 Installation
 
 ### 1. Zero-Install (Try it out)
-Run instantly without installing anything:
+Run instantly without installing anything (perfect for quick lookups):
 
 ```bash
+# 1. Initialize (Detects IDEs & creates ~/.ash) - Run this first!
+npx awesome-skills-hub init
+
+# 2. Browse & Search
 npx awesome-skills-hub list
+npx awesome-skills-hub search web
+
+# 3. View Skill Details
 npx awesome-skills-hub info pdf
+
+# 4. Install a Skill (Syncs to all detected IDEs)
+npx awesome-skills-hub install pdf
+
+# 5. Hydrate All IDEs (Install everything)
+npx awesome-skills-hub install --all
 ```
+
+> **💡 Pro Tip**: Zero-Install mode is primarily for trying **Built-in Skills**. To **manage your full library** (including adding custom skills) and unlock offline speed, please use **Quick Install**.
 
 ### 2. Quick Install (Recommended)
 
 **Via NPM (Cross-Platform):**
 ```bash
+# 1. Install globally (Unlocks the 'ash' command)
 npm install -g awesome-skills-hub
-# After install, run this to initialize:
+
+# 2. Initialize environment (Detects IDEs & creates ~/.ash)
 ash init
+
+# 3. Verify installation (List available skills)
+ash list
 ```
 
-### 2. Alternative Install (Shell Script)
+### 3. Alternative Install (Shell Script)
 If you don't have Node.js installed:
 
 **macOS / Linux:**
@@ -61,7 +82,7 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 > # . $PROFILE
 > ```
 
-### 3. Manual Install (Clone)
+### 4. Manual Install (Clone)
 If you prefer managing the repo yourself:
 
 **macOS / Linux:**
@@ -72,6 +93,12 @@ bash install.sh
 # Reload shell config
 source ~/.zshrc  # or ~/.bashrc
 ```
+
+**The installer will:**
+1. Detect and initialize all mainstream AI IDE environments.
+2. **Setup ASH_HOME**: Create `~/.ash/skills` (or `~\.ash\skills` on Windows) for persistent storage.
+3. Configure environment variables for **Zsh**, **Bash**, and **Fish**.
+4. Enable global `ash` command access instantly.
 
 ---
 
