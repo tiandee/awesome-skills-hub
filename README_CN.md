@@ -141,7 +141,23 @@ ash add --all -p             # 将所有技能批量注入当前项目
 ![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
 
-### 5. Vercel Labs 生态集成 (Vercel Integration)
+### 5. 命令参考 (CLI Reference) 🆕
+
+| 命令 | 用途描述 | 基本用法示例 |
+| :--- | :--- | :--- |
+| **`init`** | **初始化 ASH 环境**。在本地创建 `~/.ash` 目录并准备内置技能库。 | `ash init` |
+| **`list`** | **列出可用技能**。显示所有内置、下载及系统技能的名称、分类和物理路径。 | `ash list` (别名: `ls`) |
+| **`add`** | **安装并分发技能**。将指定技能软链接到所有支持的 AI IDE 中。同时也支持从 GitHub 直接下载并安装。 | `ash add <技能名>`<br>`ash add <GitHub_URL>`<br>`ash add --all` (全装) |
+| **`info`** | **查看技能详情**。显示技能的元数据、描述以及核心 Prompt 的预览。 | `ash info <技能名>` |
+| **`search`** | **搜索技能**。在技能名称和描述中通过关键词检索。 | `ash search <关键词>` |
+| **`status`** | **查看部署状态**。显示各 IDE 已安装的技能总数。支持查看特定 IDE 的详细映射。 | `ash status`<br>`ash status --full`<br>`ash status cursor` |
+| **`uninstall`** | **移除技能链接**。从各 IDE 的技能目录中通过软链接移除指定技能（不删源文件）。 | `ash uninstall <技能名>`<br>`ash uninstall --all` |
+| **`clean`** | **清空 IDE 目录**。一键清空某个 IDE 或所有 IDE 下的所有技能链接。 | `ash clean <ide_name>`<br>`ash clean --all` |
+| **`sync`** | **生态同步**。扫描 Vercel/Agents 等外部生态的技能目录并导入到 ASH 体系中。 | `ash sync` |
+
+---
+
+## 🚀 生态集成 (Ecosystem Integration)
 **ASH 能够自动感知并导入 Vercel 生态的技能。**
 Vercel 官方推出了 `npx skills` 工具，它将技能下载到 `~/.agents/skills`。ASH 可以自动扫描该目录，将上面的优质技能**一键桥接**到所有 IDE 中。
 

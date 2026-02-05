@@ -149,7 +149,23 @@ ash add --all -p             # Install ALL skills to project
 ![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
 
-### 5. Vercel Labs Integration
+### 5. CLI Command Reference 🆕
+
+| Command | Description | Usage Example |
+| :--- | :--- | :--- |
+| **`init`** | **Initialize ASH Environment**. Creates `~/.ash` and prepares built-in skills. | `ash init` |
+| **`list`** | **List Available Skills**. Shows names, categories, and paths of all skills. | `ash list` (Alias: `ls`) |
+| **`add`** | **Install & Distribute**. Symlinks skills to IDEs. Supports local names or GitHub URLs. | `ash add <name>`<br>`ash add <GitHub_URL>`<br>`ash add --all` (Install all) |
+| **`info`** | **View Skill Details**. Shows metadata, descriptions, and prompt previews. | `ash info <name>` |
+| **`search`** | **Search Skills**. Search through names and descriptions using keywords. | `ash search <keyword>` |
+| **`status`** | **Check Deployment**. Shows skill counts per IDE. Supports detailed IDE mapping. | `ash status`<br>`ash status --full`<br>`ash status cursor` |
+| **`uninstall`**| **Remove Links**. Removes symlinks from IDEs without deleting source files. | `ash uninstall <name>`<br>`ash uninstall --all` |
+| **`clean`** | **Wipe IDE Directory**. Clears all skill links from one or all IDEs. | `ash clean <ide>`<br>`ash clean --all` |
+| **`sync`** | **Ecosystem Sync**. Import skills from external sources like Vercel/Agents. | `ash sync` |
+
+---
+
+## 🚀 Ecosystem Integration
 **ASH can automatically detect and import skills from the Vercel ecosystem.**
 Vercel's official `npx skills` tool downloads skills to `~/.agents/skills`. ASH can scan this directory and **instantly bridge** those high-quality skills to all your IDEs.
 
