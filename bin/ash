@@ -390,30 +390,42 @@ import_from_vercel() {
 # ------------------------------------------------------------------------------
 cmd_list() {
     log_info "可用技能列表:"
+    echo -e "${DIM}格式: • 技能名称 (分类: 相对路径)${NC}"
     echo ""
     
     local count=0
-    local skill_list=()
+    local skill_info_list=()
 
     # 第一步：收集并处理所有技能信息
     while IFS= read -r path; do
-        local filename=$(basename "$path")
+        local name=$(basename "$path")
+        local rel_path="${path#$SKILLS_DIR/}"
         
-        # 如果是目录，显示目录名；如果是文件，显示文件名
-        # 因为 get_all_skills 已经返回了正确的目录路径（针对Folder Skill）
-        # 所以这里只需要取 basename 即可
-        skill_list+=("$filename")
+        # 处理 Folder Skill 的 relative path
+        local tag=""
+        if [[ "$rel_path" == downloaded/* ]]; then
+            tag="下载"
+        elif [[ "$rel_path" == system/* ]]; then
+            tag="系统"
+        elif [[ "$rel_path" == demo/* ]]; then
+            tag="示例"
+        else
+            tag="内置"
+        fi
+        
+        skill_info_list+=("$name|$tag|$rel_path")
         
     done < <(get_all_skills)
     
-    # 第二步：排序（纯字母序）
+    # 第二步：排序并展示
     local IFS=$'\n'
-    local sorted_skills=($(sort <<<"${skill_list[*]}"))
+    local sorted_list=($(printf '%s\n' "${skill_info_list[@]}" | sort))
     unset IFS
 
-    # 第三步：平铺输出
-    for filename in "${sorted_skills[@]}"; do
-        echo -e "  ${GREEN}•${NC} ${CYAN}$filename${NC}"
+    for entry in "${sorted_list[@]}"; do
+        IFS='|' read -r name tag subpath <<< "$entry"
+        # 格式化输出：• 名称 (分类: 路径)
+        echo -e "  ${GREEN}•${NC} ${CYAN}$name${NC} ${DIM}($tag: $subpath)${NC}"
         ((count++))
     done
     
