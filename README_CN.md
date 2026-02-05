@@ -34,10 +34,12 @@ ash init
 curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
 ```
 
-**Windows (PowerShell):**
-```powershell
-iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
-```
+**Windows (待适配):**
+> Windows 原生支持正在重构中，请暂时使用 WSL (Windows Subsystem for Linux)。
+> ```powershell
+> # (即将推出)
+> # iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
+> ```
 
 ### 2. 手动安装 (Clone)
 如果您希望参与贡献代码：
@@ -51,14 +53,13 @@ bash install.sh
 source ~/.zshrc  # 或 ~/.bashrc
 ```
 
-**Windows (PowerShell):**
-```powershell
-# 执行安装脚本
-.\install.ps1
-
-# 重启终端或运行
-. $PROFILE
-```
+**Windows (待适配):**
+> 开发环境请暂时使用 WSL。
+> ```powershell
+> # (即将推出)
+> # .\install.ps1
+> # . $PROFILE
+> ```
 
 **安装脚本将自动执行：**
 1. 检测并初始化本地所有主流 AI IDE 环境。
@@ -136,11 +137,18 @@ ash uninstall pdf         # 卸载指定技能
 ash uninstall --all       # (同 clean --all)
 ```
 
-### 8. 同步更新
+### 8. 同步技能库
 从源码仓库或远程同步最新的技能到全局目录。
 
 ```bash
 ash sync
+```
+
+### 9. 升级 CLI 工具
+获取最新功能（如 Project Mode）请更新 NPM 包：
+
+```bash
+npm update -g awesome-skills-hub
 ```
 
 ## 🧩 目录架构

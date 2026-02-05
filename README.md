@@ -43,10 +43,12 @@ If you don't have Node.js installed:
 curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
 ```
 
-**Windows (PowerShell):**
-```powershell
-iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
-```
+**Windows (Pending Adaptation):**
+> Windows support is currently being reworked. Please use WSL (Windows Subsystem for Linux) in the meantime.
+> ```powershell
+> # (Coming Soon)
+> # iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
+> ```
 
 ### 2. Manual Install (Clone)
 If you prefer managing the repo yourself or want to contribute:
@@ -60,14 +62,13 @@ bash install.sh
 source ~/.zshrc  # or ~/.bashrc
 ```
 
-**Windows (PowerShell):**
-```powershell
-# Run installer
-.\install.ps1
-
-# Reload profile
-. $PROFILE
-```
+**Windows (Pending Adaptation):**
+> Please use WSL for development and contribution for now.
+> ```powershell
+> # (Coming Soon)
+> # .\install.ps1
+> # . $PROFILE
+> ```
 
 **The installer will:**
 1. Detect and initialize all mainstream AI IDE environments.
@@ -137,11 +138,18 @@ ash uninstall pdf         # Uninstall specific skill
 ash uninstall --all       # (Same as clean --all)
 ```
 
-### 8. Update
+### 8. Sync Skills
 Pull the latest skills from the repository and sync them to your global home.
 
 ```bash
 ash sync
+```
+
+### 9. Upgrade CLI Tool
+Get the latest features (like Project Mode) by updating the NPM package.
+
+```bash
+npm update -g awesome-skills-hub
 ```
 
 ## 📂 System Architecture
