@@ -76,7 +76,7 @@ source ~/.zshrc  # or ~/.bashrc
 4. Enable global `ash` command access instantly.
 
 ### 1. Browse Skill Library
-Browse official Anthropic skills automatically categorized:
+Browse official Anthropic skills:
 
 ```bash
 ash list

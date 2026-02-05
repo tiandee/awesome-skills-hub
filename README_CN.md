@@ -75,7 +75,7 @@ ash init
 ## 📖 使用手册
 
 ### 1. 浏览技能库
-查看来自 Anthropic 官方的实用技能（已按功能自动分类）：
+查看来自 Anthropic 官方的实用技能：
 
 ```bash
 ash list
