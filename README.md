@@ -19,12 +19,11 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 
 ## 🚀 Features
 
-- **Centralized Management**: Keep all your prompts in one Git repository.
-- **Cross-Platform**: Supports **Antigravity**, **Cursor**, **Windsurf**, **TRAE**, and **Claude CLI**.
-- **Persistent Storage (ASH_HOME)**: Skills are stored in your home directory (`~/.ash`). Your IDE links remain intact even if you delete the cloned repository.
-- **Symlink-Based**: Updates in the repository immediately reflect in all your connected IDEs.
+- **Dual-Scope Management**: Support both **Global (Personal)** and **Project-Level (Team)** skill management.
+- **Universal IDE Bridge**: Automatically creates compatibility bridges for **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot**, unifying them under `.claude/skills`.
+- **Centralized "Homebrew"**: Keep all your prompts in one place (`~/.ash`), independent of specific IDE configurations.
+- **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
 - **Smart Interaction**: Name-based installation, batch operations, and "Did you mean?" suggestions.
-- **CLI Tool**: Professional `ash` command to manage your AI workspace.
 
 ### 1. Quick Install (Recommended)
 
@@ -35,31 +34,12 @@ npm install -g awesome-skills-hub
 ash init
 ```
 
-### 2. Alternative Install (Shell Script)
-If you don't have Node.js installed:
-
-**macOS / Linux:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
-```
-
-**Windows (Pending Adaptation):**
-> Windows support is currently being reworked. Please use WSL (Windows Subsystem for Linux) in the meantime.
-> ```powershell
-> # (Coming Soon)
-> # iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
-> ```
-
 ### 2. Manual Install (Clone)
 If you prefer managing the repo yourself or want to contribute:
 
 **macOS / Linux:**
 ```bash
-# Run installer
-bash install.sh
-
-# Reload shell config
-source ~/.zshrc  # or ~/.bashrc
+curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
 ```
 
 **Windows (Pending Adaptation):**
@@ -90,8 +70,8 @@ Get detailed descriptions, triggers, and content previews:
 ash info pdf       # Supports smart name matching
 ```
 
-### 3. Install a Skill
-Link a skill to all detected IDEs. Support **Smart Path Resolution**—no need to type full paths.
+### 3. Install a Skill (Global / User Level)
+Link a skill to your **User Home Directory**, making it available across all your projects in supported IDEs.
 
 ```bash
 ash install pdf           # Install by name (Global)
@@ -99,7 +79,7 @@ ash install --all         # Sync all 17+ skills to all IDEs at once
 ```
 
 ### 4. Project Mode (Local Install) 🆕
-Install skills directly into your project for team sharing or isolation.
+Install skills directly into your **Current Project Directory** for team sharing or isolation.
 ASH enforces `.claude/skills` as the standard source of truth but **automatically bridges** to your IDE.
 
 ```bash
@@ -167,22 +147,6 @@ npm uninstall -g awesome-skills-hub
 - **ASH Home**: `~/.ash` (or `$env:USERPROFILE\.ash`)
 - **Global Skills Hub**: `~/.ash/skills/`
 - **Persistent Links**: All IDE symlinks point to this stable global path.
-
-## 📂 Repository Structure
-
-```text
-awesome-skills-hub/
-├── skills/                  # The Skills Library (Flat Structure)
-│   ├── pdf/                 # Skill: PDF Expert
-│   │   ├── SKILL.md         # Main Prompt/Instruction
-│   │   └── scripts/         # Associated scripts
-│   ├── react/               # Skill: React Expert
-│   │   └── SKILL.md
-│   └── ...
-├── bin/
-│   └── ash                  # CLI Executable
-└── install.sh               # Setup script
-```
 
 ## 🧩 UX Highlights
 
