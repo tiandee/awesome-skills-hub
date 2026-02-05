@@ -11,11 +11,14 @@
 
 ## 🌟 核心亮点
 
-- **双重作用域管理 (Dual-Scope)**：支持 **全局作用域**（用户目录 `~/.ash/skills`）和 **项目作用域**（项目内的 IDE 技能配置目录）双维度管理。
-- **通用 IDE 桥接 (Universal Bridge)**：标准化的 `.claude/skills` 架构，自动生成兼容 **Cursor**, **Windsurf**, **TRAE**, **Antigravity** 和 **Copilot** 的桥接配置。
+- **双重作用域 (Dual-Scope)**：支持 **全局作用域**（用户目录 `~/.ash/skills`）和 **项目作用域**（项目内的 IDE 技能配置目录）双维度管理。
+- **通用 IDE 桥接**: 标准化的 `.claude/skills` 架构，自动生成兼容 **Cursor**, **Windsurf**, **TRAE**, **Antigravity** 和 **Copilot** 的桥接配置。
 - **Homebrew 式管理**：将技能统一托管在系统家目录 (`~/.ash`)，做 IDE 之外的"军火库"。
-- **实时软链**：本地更新技能文件，所有关联的 IDE 瞬间生效。
-- **智能交互**：支持模糊搜索、批量安装以及 "Did you mean?" 拼写纠错。
+- **智能交互**：支持模糊搜索、批量安装以及拼写纠错。
+
+---
+
+## 📦 安装指南
 
 ### 1. 快速安装 (推荐)
 
@@ -41,7 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 > # iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
 > ```
 
-### 2. 手动安装 (Clone)
+### 3. 手动安装 (Clone)
 如果您希望参与贡献代码：
 
 **macOS / Linux:**
@@ -67,11 +70,13 @@ source ~/.zshrc  # 或 ~/.bashrc
 3. 自动配置环境变量，支持 **Zsh**, **Bash** 和 **Fish**。
 4. 实现全局命令 `ash` 的一键访问。
 
-### 2. 环境初始化 (可选)
+### 4. 环境初始化 (可选)
 如果您以后安装了新的 IDE，只需运行：
 ```bash
 ash init
 ```
+
+---
 
 ## 📖 使用手册
 
@@ -90,7 +95,7 @@ ash info pdf       # 支持模糊匹配名称
 ```
 
 ### 3. 安装技能 (全局 / 用户级)
-将技能链接到您的 **用户家目录** (User Home Directory)，即刻在所有支持的 IDE 全局配置中生效。
+将技能链接到您的 **用户家目录** (`~/.ash/skills`)，即刻在所有支持的 IDE 全局配置中生效。
 
 ```bash
 ash install pdf           # 智能通过名称安装 (全局)
@@ -108,12 +113,11 @@ ash install --all -p             # 将所有技能批量注入当前项目
 ```
 
 **支持自动桥接的 IDE**:
-- `.cursor/skills` (Cursor)
-- `.windsurf/skills` (Windsurf)
-- `.trae/skills` (TRAE)
-- `.trae-cn/skills` (TRAE CN)
-- `.agent/skills` (Antigravity)
-- `.copilot/skills` (Copilot)
+![Cursor](https://img.shields.io/badge/Cursor-Supported-blue?logo=cursor&logoColor=white)
+![Windsurf](https://img.shields.io/badge/Windsurf-Supported-blueviolet)
+![TRAE](https://img.shields.io/badge/TRAE-Supported-00a1ff)
+![Antigravity](https://img.shields.io/badge/Antigravity-Supported-4285F4?logo=google)
+![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
 ### 5. 状态与搜索
 ```bash
@@ -122,7 +126,7 @@ ash status                # 查看当前安装映射状态
 ```
 
 ### 6. 清理与重置
-一键清空指定 IDE 或所有 IDE 的技能链接（不会删除源码）。
+一键清空指定 IDE 或所有 IDE 的技能链接。
 
 ```bash
 ash clean cursor          # 仅清空 Cursor 的技能
@@ -130,7 +134,7 @@ ash clean --all           # 清空所有 IDE 的技能 (核弹选项)
 ```
 
 ### 7. 卸载技能
-移除技能链接。支持 `--all` 标志一键清理。
+移除技能链接。
 
 ```bash
 ash uninstall pdf         # 卸载指定技能
@@ -145,7 +149,7 @@ ash sync
 ```
 
 ### 9. CLI 工具维护
-管理 `ash` 工具本身的实用指令：
+管理 `ash` 工具本身：
 
 ```bash
 # 升级到最新版本
@@ -154,14 +158,13 @@ npm update -g awesome-skills-hub
 # 查看当前已安装版本
 npm list -g awesome-skills-hub
 
-# 查询远程最新版本号
-npm view awesome-skills-hub version
-
 # 卸载 CLI 工具
 npm uninstall -g awesome-skills-hub
 ```
 
-## 🧩 目录架构
+---
+
+## 📂 系统架构
 
 - **软件家目录 (`ASH_HOME`)**: `~/.ash` (或 `$env:USERPROFILE\.ash`)
 - **技能存储仓**: `~/.ash/skills/`
@@ -174,15 +177,14 @@ npm uninstall -g awesome-skills-hub
 
 ## 🤝 支持平台
 
-| 平台 | 目标路径 | 支持程度 |
+| 平台 | 目标路径 | 状态 |
 | :--- | :--- | :--- |
-| **Google Antigravity** | `~/.agent/skills/` | ✅ 完美支持 |
-| **Cursor** | `~/.cursor/skills/` | ✅ 完美支持 |
-| **TRAE (国际版)** | `~/.trae/skills/` | ✅ 完美支持 |
-| **TRAE (中国版)** | `~/.trae-cn/skills/` | ✅ 完美支持 |
-| **Windsurf** | `~/.windsurf/skills/` | ✅ 完美支持 |
-| **VS Code + Copilot** | `~/.copilot/skills/` | ✅ 完美支持 |
-| **Claude Code** | `~/.claude/skills/` | ✅ 完美支持 |
+| ![Antigravity](https://img.shields.io/badge/Antigravity-4285F4?style=flat-square&logo=google&logoColor=white) | `~/.agent/skills/` | ✅ |
+| ![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white) | `~/.cursor/skills/` | ✅ |
+| ![TRAE](https://img.shields.io/badge/TRAE-00A1FF?style=flat-square) | `~/.trae/skills/` | ✅ |
+| ![Windsurf](https://img.shields.io/badge/Windsurf-5D3FD3?style=flat-square) | `~/.windsurf/skills/` | ✅ |
+| ![Copilot](https://img.shields.io/badge/Copilot-171515?style=flat-square&logo=github&logoColor=white) | `~/.copilot/skills/` | ✅ |
+| ![Claude](https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=anthropic&logoColor=white) | `~/.claude/skills/` | ✅ |
 
 ## 🛠️ 贡献代码
 
