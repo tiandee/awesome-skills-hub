@@ -777,22 +777,96 @@ download_github_skill() {
         fi
     fi
     
-    # 4. Determine Skill Name & Validate
+    # 4. Determine Skill Name & Validate (DISCOVERY MODE)
     local skill_name=""
+    local is_valid_skill=0
+    
+    # Check if current path is a valid skill
     if [ -f "$source_path/SKILL.md" ]; then
-        # Folder Skill
+        is_valid_skill=1
         skill_name=$(basename "$source_path")
     elif [[ "$subdir" == *.md ]]; then
-         # Single File Skill specified explicitly
+         is_valid_skill=1
          skill_name=$(basename "$source_path" .md)
-    else
-        # Try to find a single MD file if it's the repo root and no SKILL.md
-        if [ -f "$source_path/${repo}.md" ]; then
-            skill_name="$repo"
-            source_path="$source_path/${repo}.md"
-        else
-            # Fallback: Just use directory name
+    elif [ -f "$source_path/${repo}.md" ]; then
+         is_valid_skill=1
+         skill_name="$repo"
+         source_path="$source_path/${repo}.md"
+    fi
+    
+    # --- Interactive Discovery Logic ---
+    if [ $is_valid_skill -eq 0 ]; then
+        log_warn "当前路径不是一个有效的技能 (未找到 SKILL.md)。" >&2
+        log_info "正在扫描仓库以发现可用技能..." >&2
+        
+        # Find all SKILL.md files (max depth 3)
+        # Use process substitution or temp file to capture array safely
+        local candidates=()
+        while IFS= read -r file; do
+            candidates+=("$file")
+        done < <(find "$source_path" -maxdepth 4 -name "SKILL.md" | sort)
+        
+        local count=${#candidates[@]}
+        
+        if [ $count -eq 0 ]; then
+            log_error "扫描完成，未在仓库中发现任何有效技能。" >&2
+            rm -rf "$tmp_dir"
+            return 1
+        elif [ $count -eq 1 ]; then
+            # Auto-select the only one found
+            local skill_file="${candidates[0]}"
+            source_path=$(dirname "$skill_file")
             skill_name=$(basename "$source_path")
+            log_success "发现唯一技能: ${CYAN}$skill_name${NC}" >&2
+        else
+            # Interactive Selection
+            echo -e "\n${GREEN}发现 $count 个可用技能:${NC}" >&2
+            local i=1
+            for file in "${candidates[@]}"; do
+                local dir=$(dirname "$file")
+                local rel_path="${dir#$tmp_dir/}"
+                echo -e "  ${CYAN}[$i]${NC} $rel_path" >&2
+                ((i++))
+            done
+            
+            echo "" >&2
+            local selection
+            # Read from /dev/tty to bypass stdout capture
+            if [ -t 0 ]; then
+                 read -p "请选择要安装的技能编号 [1-$count]: " selection < /dev/tty
+            else
+                 # Fallback for non-interactive / pipe
+                 # Try to read from current stdin if valid, otherwise impossible
+                 # But ash is likely interactive.
+                 # If we can't read from tty, fail.
+                 log_error "无法进行交互式选择 (非 TTY 环境)。请指定具体子目录。" >&2
+                 rm -rf "$tmp_dir"
+                 return 1
+            fi
+
+            if [[ ! "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "$count" ]; then
+                log_error "无效选择。" >&2
+                rm -rf "$tmp_dir"
+                return 1
+            fi
+            
+            local selected_file="${candidates[$((selection-1))]}"
+            source_path=$(dirname "$selected_file")
+            skill_name=$(basename "$source_path")
+            log_success "已选择: ${CYAN}$skill_name${NC}" >&2
+        fi
+        
+        # Re-verify just in case
+        if [ ! -f "$source_path/SKILL.md" ]; then
+             # Should not happen
+              skill_name=$(basename "$source_path")
+        fi
+    else
+        # Fallback Name for valid skills detected earlier checks didn't catch specific name?
+        # Actually logic above sets skill_name.
+        # Just ensure it's set if we fell through here without discovery.
+        if [ -z "$skill_name" ]; then
+             skill_name=$(basename "$source_path")
         fi
     fi
     
