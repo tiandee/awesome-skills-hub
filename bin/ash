@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.25"
+VERSION="1.1.26"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -217,13 +217,24 @@ get_all_skills() {
         # 2. Ordinary .md File
         if [ "$filename" == "README.md" ]; then continue; fi
 
-        # 2.2 Shadowing Check
-        local core_name="${filename%.md}"
-        if [ -f "$SKILLS_DIR/$core_name/SKILL.md" ]; then continue; fi
+        # 2.2 Shadowing & Nested Check (Recursive Parent Check)
+        local parent=$(dirname "$rel_path")
+        local is_nested=0
         
-        # 2.3 Nested File Check
-        local top_level_dir="${rel_path%%/*}"
-        if [ -f "$SKILLS_DIR/$top_level_dir/SKILL.md" ]; then continue; fi
+        # Check all parent directories up to root
+        while [ "$parent" != "." ] && [ "$parent" != "/" ]; do
+            if [ -f "$SKILLS_DIR/$parent/SKILL.md" ]; then
+                is_nested=1
+                break
+            fi
+            parent=$(dirname "$parent")
+        done
+        
+        if [ $is_nested -eq 1 ]; then continue; fi
+        
+        # Also check if the file itself has a sibling directory skill (shadowing)
+        local core_name="${filename%.md}"
+        if [ -f "$SKILLS_DIR/$(dirname "$rel_path")/$core_name/SKILL.md" ]; then continue; fi
         
         echo "$item"
     done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
