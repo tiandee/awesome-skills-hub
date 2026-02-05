@@ -796,8 +796,7 @@ download_github_skill() {
     
     # --- Interactive Discovery Logic ---
     if [ $is_valid_skill -eq 0 ]; then
-        log_warn "当前路径不是一个有效的技能 (未找到 SKILL.md)。" >&2
-        log_info "正在扫描仓库以发现可用技能..." >&2
+        log_info "检测到当前路径为技能合集容器 (Monorepo)，正在扫描内部技能..." >&2
         
         # Find all SKILL.md files (max depth 3)
         # Use process substitution or temp file to capture array safely
