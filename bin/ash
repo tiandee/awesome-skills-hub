@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.6"
+VERSION="1.1.9"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -118,6 +118,7 @@ show_help() {
     echo "  status            显示已安装的技能"
     echo "  install <name>    安装技能 (创建软链接到所有已检测的 IDE)"
     echo "  uninstall <name>  卸载技能 (删除软链接，支持 --all 卸载全部)"
+    echo "  clean <ide|--all>     清空指定 IDE (或所有) 的技能目录"
     echo "  sync              同步更新技能仓库 (git pull)"
     echo ""
     echo -e "${YELLOW}选项:${NC}"
@@ -141,8 +142,16 @@ show_help() {
 resolve_skill_path() {
     local input="$1"
     
-    # 1. 尝试直接匹配 (带或不带 .md)
+    # 1. 尝试直接匹配路径
     local direct_path="$SKILLS_DIR/$input"
+    
+    # Check for Folder Skill (Must contain SKILL.md)
+    if [ -d "$direct_path" ] && [ -f "$direct_path/SKILL.md" ]; then
+        echo "$direct_path"
+        return 0
+    fi
+    
+    # Check for File Skill
     if [ -f "$direct_path" ]; then
         echo "$direct_path"
         return 0
@@ -152,14 +161,21 @@ resolve_skill_path() {
         return 0
     fi
     
-    # 2. 在所有分类中搜索匹配的文件名
-    local filename="$input"
-    if [[ "$filename" != *.md ]]; then
-        filename="${filename}.md"
-    fi
+    # 2. 搜索：同时查找 .md 文件和目录型技能
+    local matches=()
     
-    # 使用 find 寻找所有匹配项
-    local matches=($(find "$SKILLS_DIR" -type f -name "$filename"))
+    # 查找 .md 文件
+    while IFS= read -r file; do
+        matches+=("$file")
+    done < <(find "$SKILLS_DIR" -type f -name "${input}.md")
+    
+    # 查找同名目录 (必须包含 SKILL.md)
+    while IFS= read -r dir; do
+        if [ -f "$dir/SKILL.md" ]; then
+            matches+=("$dir")
+        fi
+    done < <(find "$SKILLS_DIR" -type d -name "${input}")
+
     local count=${#matches[@]}
     
     if [ "$count" -eq 1 ]; then
@@ -175,6 +191,36 @@ resolve_skill_path() {
     fi
     
     return 1 # 未找到
+}
+
+# ------------------------------------------------------------------------------
+# 辅助函数: 获取所有可用技能列表 (去重/过滤)
+# Returns: Array of valid skill paths (files or folder paths) printed to stdout
+# ------------------------------------------------------------------------------
+get_all_skills() {
+    while IFS= read -r item; do
+        local rel_path="${item#$SKILLS_DIR/}"
+        local filename="${rel_path##*/}"
+
+        # 1. Folder Skill (SKILL.md) -> Return parent dir
+        if [ "$filename" = "SKILL.md" ]; then
+            echo "$(dirname "$item")"
+            continue
+        fi
+
+        # 2. Ordinary .md File
+        if [ "$filename" == "README.md" ]; then continue; fi
+
+        # 2.2 Shadowing Check
+        local core_name="${filename%.md}"
+        if [ -f "$SKILLS_DIR/$core_name/SKILL.md" ]; then continue; fi
+        
+        # 2.3 Nested File Check
+        local top_level_dir="${rel_path%%/*}"
+        if [ -f "$SKILLS_DIR/$top_level_dir/SKILL.md" ]; then continue; fi
+        
+        echo "$item"
+    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
 }
 
 # ------------------------------------------------------------------------------
@@ -263,24 +309,29 @@ cmd_list() {
     echo ""
     
     local count=0
-    local last_category=""
+    local skill_list=()
+
+    # 第一步：收集并处理所有技能信息
+    while IFS= read -r path; do
+        local filename=$(basename "$path")
+        
+        # 如果是目录，显示目录名；如果是文件，显示文件名
+        # 因为 get_all_skills 已经返回了正确的目录路径（针对Folder Skill）
+        # 所以这里只需要取 basename 即可
+        skill_list+=("$filename")
+        
+    done < <(get_all_skills)
     
-    while IFS= read -r file; do
-        # 提取分类和文件名
-        local rel_path="${file#$SKILLS_DIR/}"
-        local category="${rel_path%/*}"
-        local filename="${rel_path##*/}"
-        
-        # 按分类显示
-        if [ "$category" != "$last_category" ]; then
-            [ "$count" -ne 0 ] && echo ""
-            echo -e "${YELLOW}[$category]${NC}"
-            last_category="$category"
-        fi
-        
+    # 第二步：排序（纯字母序）
+    local IFS=$'\n'
+    local sorted_skills=($(sort <<<"${skill_list[*]}"))
+    unset IFS
+
+    # 第三步：平铺输出
+    for filename in "${sorted_skills[@]}"; do
         echo -e "  ${GREEN}•${NC} ${CYAN}$filename${NC}"
         ((count++))
-    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
+    done
     
     echo ""
     log_info "共 $count 个技能可用"
@@ -301,16 +352,24 @@ cmd_info() {
     local ret=$?
     
     if [ $ret -eq 0 ]; then
+        # Handle Directory Skill: Use SKILL.md for info
+        local content_file="$source_file"
+        if [ -d "$source_file" ]; then
+            content_file="$source_file/SKILL.md"
+        fi
+
         local rel_path="${source_file#$SKILLS_DIR/}"
         echo -e "${CYAN}技能:${NC} $rel_path"
-        local desc=$(extract_description "$source_file")
+        
+        # Extract description from content file
+        local desc=$(extract_description "$content_file")
         echo -e "${GREEN}描述:${NC} ${desc:-"(无描述)"}"
         
         echo -e "${DIM}内容预览:${NC}"
-        if [ "$(head -n 1 "$source_file" 2>/dev/null)" == "---" ]; then
-            sed '1,/---/d' "$source_file" | grep -v "^---" | head -n 10 | sed 's/^/  /'
+        if [ "$(head -n 1 "$content_file" 2>/dev/null)" == "---" ]; then
+            sed '1,/---/d' "$content_file" | grep -v "^---" | head -n 10 | sed 's/^/  /'
         else
-            head -n 10 "$source_file" | sed 's/^/  /'
+            head -n 10 "$content_file" | sed 's/^/  /'
         fi
     elif [ $ret -eq 1 ]; then
         log_error "未找到匹配的技能: $skill_name"
@@ -332,20 +391,33 @@ cmd_search() {
     echo ""
 
     local count=0
-    while IFS= read -r file; do
-        rel_path="${file#$SKILLS_DIR/}"
+    while IFS= read -r item; do
+        rel_path="${item#$SKILLS_DIR/}"
+        
+        # Resolve actual content file for description extraction
+        local content_file="$item"
+        if [ -d "$item" ]; then
+            content_file="$item/SKILL.md"
+        fi
+        
         # 获取描述
-        first_line=$(extract_description "$file")
+        first_line=$(extract_description "$content_file")
         
         # 在路径或描述中搜索 (不区分大小写)
         if echo "$rel_path $first_line" | grep -iq "$keyword"; then
-            echo -e "  ${GREEN}•${NC} ${CYAN}$rel_path${NC}"
+            # Display: Use basename for cleaner output (like list) or rel_path?
+            # User likely wants to see the skill name clearly.
+            # list uses basename. search used rel_path.
+            # Let's use basename for consistency, maybe showing parent dir in parens?
+            local filename=$(basename "$item")
+            
+            echo -e "  ${GREEN}•${NC} ${CYAN}$filename${NC} ${DIM}($rel_path)${NC}"
             if [ -n "$first_line" ]; then
                 echo -e "    $first_line"
             fi
             ((count++))
         fi
-    done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
+    done < <(get_all_skills)
 
     if [ $count -eq 0 ]; then
         log_warn "未找到匹配的技能: $keyword"
@@ -364,180 +436,174 @@ cmd_status() {
     
     local found=0
     
-    # Check Antigravity
-    if [ -d "$AGENT_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}Antigravity (~/.agent/skills):${NC}"
-        for link in "$AGENT_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
+    # Helper to check an IDE dir
+    check_ide_status() {
+        local ide_name="$1"
+        local dir="$2"
+        local found_in_ide=0
+        
+        if [ -d "$dir" ]; then
+            echo -e "  ${CYAN}${ide_name} ($dir):${NC}"
+            
+            # Enable nullglob to handle empty dirs correctly if no matches
+            shopt -s nullglob
+            # Capture all symlinks (files or dirs)
+            local links=("$dir"/*)
+            shopt -u nullglob
+            
+            for link in "${links[@]}"; do
+                if [ -L "$link" ]; then
+                    local target=$(readlink "$link")
+                    local name=$(basename "$link")
+                    echo -e "    ${GREEN}•${NC} $name -> $target"
+                    ((found_in_ide++))
+                fi
+            done
+            
+            if [ $found_in_ide -eq 0 ]; then
+                echo -e "    ${YELLOW}(无)${NC}"
             fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
         fi
-    fi
-    
-    found=0
-    # Check Cursor
-    if [ -d "$CURSOR_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}Cursor (~/.cursor/skills):${NC}"
-        for link in "$CURSOR_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
-            fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
-        fi
-    fi
+    }
 
-    found=0
-    # Check TRAE
-    if [ -d "$TRAE_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}TRAE (~/.trae/skills):${NC}"
-        for link in "$TRAE_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
-            fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
-        fi
-    fi
-
-    found=0
-    # Check Windsurf
-    if [ -d "$WINDSURF_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}Windsurf (~/.windsurf/skills):${NC}"
-        for link in "$WINDSURF_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
-            fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
-        fi
-    fi
-
-    found=0
-    # Check Copilot
-    if [ -d "$COPILOT_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}Copilot (~/.copilot/skills):${NC}"
-        for link in "$COPILOT_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
-            fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
-        fi
-    fi
-
-    found=0
-    # Check Claude
-    if [ -d "$CLAUDE_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}Claude (~/.claude/skills):${NC}"
-        for link in "$CLAUDE_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
-            fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
-        fi
-    fi
-
-    found=0
-    # Check Trae CN
-    if [ -d "$TRAE_CN_SKILLS_DIR" ]; then
-        echo -e "  ${CYAN}Trae CN (~/.trae-cn/skills):${NC}"
-        for link in "$TRAE_CN_SKILLS_DIR"/*.md; do
-            if [ -L "$link" ]; then
-                local target=$(readlink "$link")
-                local name=$(basename "$link")
-                echo -e "    ${GREEN}•${NC} $name -> $target"
-                ((found++))
-            fi
-        done 2>/dev/null
-        if [ $found -eq 0 ]; then
-            echo -e "    ${YELLOW}(无)${NC}"
-        fi
-    fi
+    check_ide_status "Antigravity" "$AGENT_SKILLS_DIR"
+    check_ide_status "Cursor" "$CURSOR_SKILLS_DIR"
+    check_ide_status "TRAE" "$TRAE_SKILLS_DIR"
+    check_ide_status "Windsurf" "$WINDSURF_SKILLS_DIR"
+    check_ide_status "VS Code + Copilot" "$COPILOT_SKILLS_DIR"
+    check_ide_status "Claude" "$CLAUDE_SKILLS_DIR"
+    check_ide_status "Trae CN" "$TRAE_CN_SKILLS_DIR"
     
     echo ""
 }
 
 # ------------------------------------------------------------------------------
+# Command: clean
+# ------------------------------------------------------------------------------
+cmd_clean() {
+    local target="$1"
+    
+    # 定义 IDE 名称及其对应的路径 (需与 install_skill_file 保持一致)
+    local ide_names=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    
+    if [ -z "$target" ]; then
+        echo -e "用法: ash clean <ide_name> 或 ash clean --all"
+        echo -e "可用 IDE: [${ide_names[*]}]"
+        return 1
+    fi
+
+    # 确认操作
+    echo -e "${YELLOW}警告: 此操作将删除目标目录下的所有技能链接 (不会删除源文件)。${NC}"
+    read -p "确定要继续吗? [y/N] " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "已取消。"
+        return 0
+    fi
+
+    local cleaned_any=0
+
+    # Clean Logic
+    clean_dir() {
+        local dir="$1"
+        local name="$2"
+        
+        if [ ! -d "$dir" ]; then
+            # echo "Skipping $name: directory not found."
+            return
+        fi
+
+        # Find count first
+        local count=$(find "$dir" -maxdepth 1 -type l | wc -l | tr -d ' ')
+        if [ "$count" -gt 0 ]; then
+            # 只删除软链接，保留用户可能手动放入的实体文件 (安全起见)
+            find "$dir" -maxdepth 1 -type l -delete
+            log_success "已清空 $name 技能目录 ($count 个链接已移除)。"
+            ((cleaned_any++))
+        else
+            echo -e "${DIM}  $name: 已经是空的。${NC}"
+        fi
+    }
+
+    if [ "$target" == "--all" ]; then
+        for i in "${!ide_names[@]}"; do
+            clean_dir "${dirs[$i]}" "${ide_names[$i]}"
+        done
+    else
+        # Fuzzy match target name
+        local found_target=0
+        for i in "${!ide_names[@]}"; do
+            # Case insensitive match (Bash 3.2 compatible)
+            local ide_lower=$(echo "${ide_names[$i]}" | tr '[:upper:]' '[:lower:]')
+            local target_lower=$(echo "${target}" | tr '[:upper:]' '[:lower:]')
+            
+            if [[ "$ide_lower" == "$target_lower" ]]; then
+                clean_dir "${dirs[$i]}" "${ide_names[$i]}"
+                found_target=1
+                break
+            fi
+        done
+        
+        if [ $found_target -eq 0 ]; then
+            log_error "未找到名为 '$target' 的 IDE。"
+            echo "可用名称: ${ide_names[*]}"
+            return 1
+        fi
+    fi
+    
+    if [ $cleaned_any -eq 0 ]; then
+        log_warn "没有执行任何清理操作 (目录为空或不存在)。"
+    fi
+}
+
+
+# ------------------------------------------------------------------------------
 # Command: install
 # ------------------------------------------------------------------------------
 # 辅助函数: 安装单个技能文件到所有检测到的 IDE
+# 辅助函数: 安装单个技能(文件 或 文件夹)到所有检测到的 IDE
 install_skill_file() {
-    local source_file="$1"
+    local source_path="$1"
     local installed=0
-    local filename=$(basename "$source_file")
-
-    # Link to Antigravity
-    if [ -d "$AGENT_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$AGENT_SKILLS_DIR/$filename"
-        ((installed++))
-    fi
+    local filename=$(basename "$source_path")
     
-    # Link to Cursor
-    if [ -d "$CURSOR_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$CURSOR_SKILLS_DIR/$filename"
-        ((installed++))
+    # 检测是文件还是文件夹
+    local is_dir=0
+    if [ -d "$source_path" ]; then
+        is_dir=1
     fi
 
-    # Link to TRAE
-    if [ -d "$TRAE_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$TRAE_SKILLS_DIR/$filename"
-        ((installed++))
-    fi
+    # 定义 IDE 目录映射
+    local targets=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    # 定义对应显示的 IDE 名称
+    local ide_names=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    
+    local installed_ides=()
 
-    # Link to Windsurf
-    if [ -d "$WINDSURF_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$WINDSURF_SKILLS_DIR/$filename"
-        ((installed++))
-    fi
-
-    # Link to VS Code + Copilot
-    if [ -d "$COPILOT_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$COPILOT_SKILLS_DIR/$filename"
-        ((installed++))
-    fi
-
-    # Link to Claude Code
-    if [ -d "$CLAUDE_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$CLAUDE_SKILLS_DIR/$filename"
-        ((installed++))
-    fi
-
-    # Link to Trae CN
-    if [ -d "$TRAE_CN_SKILLS_DIR" ]; then
-        ln -sf "$source_file" "$TRAE_CN_SKILLS_DIR/$filename"
-        ((installed++))
-    fi
+    for i in "${!targets[@]}"; do
+        local target_dir="${targets[$i]}"
+        local ide_name="${ide_names[$i]}"
+        
+        if [ -d "$target_dir" ]; then
+            local dest="$target_dir/$filename"
+            
+            # 使用 ln -sfn 强制更新链接 (支持目录和文件)
+            ln -sfn "$source_path" "$dest"
+            ((installed++))
+            installed_ides+=("$ide_name")
+        fi
+    done
 
     if [ $installed -gt 0 ]; then
-        log_success "已链接: $filename (${source_file#$SKILLS_DIR/})"
+        local type_label="文件"
+        [ $is_dir -eq 1 ] && type_label="目录包"
+        
+        # 将数组转换为逗号分隔字符串
+        local ides_str=$(IFS=,; echo "${installed_ides[*]}")
+        ides_str="${ides_str//,/, }"
+        
+        log_success "已安装 $type_label: $filename (${source_path#$SKILLS_DIR/})"
+        echo -e "  ${DIM}↳ 同步至 ${installed} 个 IDE: [${CYAN}${ides_str}${DIM}]${NC}"
     fi
     return $installed
 }
@@ -551,11 +617,11 @@ cmd_install() {
     fi
 
     if [ "$skill_name" == "--all" ]; then
-        # 获取所有待安装的技能文件
+        # 获取所有待安装的技能文件 (使用通用过滤函数)
         local skill_files=()
-        while IFS= read -r file; do
-            skill_files+=("$file")
-        done < <(find "$SKILLS_DIR" -type f -name "*.md" ! -name "README.md" | sort)
+        while IFS= read -r path; do
+            skill_files+=("$path")
+        done < <(get_all_skills)
         
         local skill_count=${#skill_files[@]}
         log_info "正在批量安装 $skill_count 个技能到所有检测到的 IDE..."
@@ -577,7 +643,8 @@ cmd_install() {
             for i in "${!ides[@]}"; do
                 local dir="${dirs[$i]}"
                 if [ -d "$dir" ]; then
-                    ln -sf "$file" "$dir/$filename"
+                    # Force link creation (directory or file)
+                    ln -sfn "$file" "$dir/$filename"
                     ((total_links++))
                 fi
             done
@@ -612,10 +679,9 @@ cmd_install() {
         return 1
     fi
     
-    # Safety Check: Ensure the resolved path is actually a file
-    if [ ! -f "$source_file" ]; then
+    # Safety Check: Ensure the resolved path valid (file or directory)
+    if [ ! -e "$source_file" ]; then
         log_error "内部错误：解析到的路径无效。"
-        # echo "Debug: $source_file"
         return 1
     fi
     
@@ -687,73 +753,42 @@ cmd_uninstall() {
         return 1
     fi
     
-    # 自动补全 .md 后缀
-    if [[ "$skill_name" != *.md ]]; then
-        skill_name="${skill_name}.md"
-    fi
-    
     local removed=0
     
-    # Remove from Antigravity
-    local agent_link="$AGENT_SKILLS_DIR/$skill_name"
-    if [ -L "$agent_link" ]; then
-        rm "$agent_link"
-        log_success "已从 Antigravity 移除: $skill_name"
-        ((removed++))
-    fi
+    # 定义 IDE 名称及其对应的路径
+    local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
-    # Remove from Cursor
-    local cursor_link="$CURSOR_SKILLS_DIR/$skill_name"
-    if [ -L "$cursor_link" ]; then
-        rm "$cursor_link"
-        log_success "已从 Cursor 移除: $skill_name"
-        ((removed++))
-    fi
-
-    # Remove from TRAE
-    local trae_link="$TRAE_SKILLS_DIR/$skill_name"
-    if [ -L "$trae_link" ]; then
-        rm "$trae_link"
-        log_success "已从 TRAE 移除: $skill_name"
-        ((removed++))
-    fi
-
-    # Remove from Windsurf
-    local windsurf_link="$WINDSURF_SKILLS_DIR/$skill_name"
-    if [ -L "$windsurf_link" ]; then
-        rm "$windsurf_link"
-        log_success "已从 Windsurf 移除: $skill_name"
-        ((removed++))
-    fi
-
-    # Remove from Copilot
-    local copilot_link="$COPILOT_SKILLS_DIR/$skill_name"
-    if [ -L "$copilot_link" ]; then
-        rm "$copilot_link"
-        log_success "已从 Copilot 移除: $skill_name"
-        ((removed++))
-    fi
-
-    # Remove from Claude
-    local claude_link="$CLAUDE_SKILLS_DIR/$skill_name"
-    if [ -L "$claude_link" ]; then
-        rm "$claude_link"
-        log_success "已从 Claude 移除: $skill_name"
-        ((removed++))
-    fi
-
-    # Remove from Trae CN
-    local trae_cn_link="$TRAE_CN_SKILLS_DIR/$skill_name"
-    if [ -L "$trae_cn_link" ]; then
-        rm "$trae_cn_link"
-        log_success "已从 Trae CN 移除: $skill_name"
-        ((removed++))
-    fi
+    for i in "${!ides[@]}"; do
+        local ide_name="${ides[$i]}"
+        local dir="${dirs[$i]}"
+        
+        if [ -d "$dir" ]; then
+            # 1. 尝试移除完全匹配的名称 (用于文件夹型技能 或 显式带后缀的文件)
+            local link="$dir/$skill_name"
+            if [ -L "$link" ]; then
+                rm "$link"
+                log_success "已从 $ide_name 移除: $skill_name"
+                ((removed++))
+            fi
+            
+            # 2. 如果输入不带 .md，尝试移除带 .md 后缀的文件
+            if [[ "$skill_name" != *.md ]]; then
+                local link_md="$dir/${skill_name}.md"
+                if [ -L "$link_md" ]; then
+                    rm "$link_md"
+                    log_success "已从 $ide_name 移除: ${skill_name}.md"
+                    ((removed++))
+                fi
+            fi
+        fi
+    done
     
     if [ $removed -eq 0 ]; then
         log_warn "未找到已安装的技能: $skill_name"
     fi
 }
+
 
 # ------------------------------------------------------------------------------
 # Main Dispatch
@@ -784,24 +819,12 @@ case "$1" in
         shift
         cmd_uninstall "$@"
         ;;
+    clean)
+        shift
+        cmd_clean "$@"
+        ;;
     sync)
-        log_info "正在检查更新方式..."
-        if [ -d "$PROJECT_ROOT/.git" ]; then
-            log_info "检测到 Git 仓库，正在拉取最新代码..."
-            git -C "$PROJECT_ROOT" pull
-            if [ $? -eq 0 ]; then
-                log_success "Git 同步完成。"
-                # Still need to copy new skills to ~/.ash/skills if they are different?
-                # For git clone users, usually they symlink or use directly.
-                # But for consistency, let's suggest re-install or just leave it.
-            else
-                log_error "Git 拉取失败。"
-            fi
-        else
-            log_warn "当前是通过 NPM 或直接下载安装的，无法通过 Git 同步。"
-            echo -e "💡 请使用 NPM 更新: ${CYAN}npm update -g awesome-skills-hub${NC}"
-            # npm update -g awesome-skills-hub # Optional: try to auto-update? No, permissions issues.
-        fi
+        cmd_sync
         ;;
     -v|--version)
         show_version
