@@ -136,9 +136,9 @@ show_help() {
     echo -e "${YELLOW}示例:${NC}"
     echo "  ash init                      # 初始化并检测 IDE"
     echo "  ash list                      # 查看所有技能"
-    echo "  ash install pdf               # 安装技能 (全局)"
-    echo "  ash install java -p           # 安装技能 (项目级)"
-    echo "  ash install --all -p          # 批量安装所有技能到项目"
+    echo "  ash add pdf                   # 安装技能 (全局)"
+    echo "  ash add java -p               # 安装技能 (项目级)"
+    echo "  ash add --all -p              # 批量安装所有技能到项目"
     echo "  ash clean --all               # 清空所有技能链接"
 }
 
@@ -191,7 +191,7 @@ resolve_skill_path() {
         echo -e "${YELLOW}[警告]${NC} 发现多个匹配的技能，请尝试使用完整路径安装:" >&2
         for match in "${matches[@]}"; do
             local rel="${match#$SKILLS_DIR/}"
-            echo -e "  - ${CYAN}ash install $rel${NC}" >&2
+            echo -e "  - ${CYAN}ash add $rel${NC}" >&2
         done
         return 2 # 冲突
     fi
@@ -623,8 +623,8 @@ bridge_ide_rules() {
 
     # 定义 IDE 配置映射
     # Logic: If project_root/.<ide> exists, create .<ide>/skills link
-    local ide_dirs=("cursor" "windsurf" "trae" "trae-cn" "agent" "copilot")
-    local ide_names=("Cursor" "Windsurf" "TRAE" "Trae CN" "Antigravity" "Copilot")
+    local ide_dirs=("cursor" "windsurf" "trae" "trae-cn" "agent" "agents" "copilot")
+    local ide_names=("Cursor" "Windsurf" "TRAE" "Trae CN" "Antigravity" "Generic Agents" "Copilot")
 
     for i in "${!ide_dirs[@]}"; do
         local dir_name=".${ide_dirs[$i]}"     # e.g., .cursor
@@ -721,7 +721,7 @@ cmd_install() {
 
     if [ -z "$skill_name" ]; then
         log_error "请指定要安装的技能名称。"
-        echo "用法: ash install <name> [-p [path]]"
+        echo "用法: ash add <name> [-p [path]]"
         return 1
     fi
 
@@ -757,8 +757,8 @@ cmd_install() {
         echo ""
 
         # 定义 IDE 名称及其对应的路径
-        local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-        local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+        local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+        local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
         
         local updated_ides=()
         local total_links=0
@@ -827,8 +827,8 @@ cmd_install() {
         local updated_ides=() # Use array to store list
         
         # ... (Existing loop for global IDEs) ...
-        local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-        local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+        local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+        local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
         
         for i in "${!ides[@]}"; do
             local ide_name="${ides[$i]}"
@@ -862,8 +862,8 @@ remove_all_links() {
     local total_count=0
     
     # 定义 IDE 名称及其对应的路径
-    local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
     for i in "${!ides[@]}"; do
         local ide_name="${ides[$i]}"
@@ -919,8 +919,8 @@ cmd_uninstall() {
     local removed=0
     
     # 定义 IDE 名称及其对应的路径
-    local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
     for i in "${!ides[@]}"; do
         local ide_name="${ides[$i]}"
@@ -974,7 +974,7 @@ case "$1" in
     status)
         cmd_status
         ;;
-    install)
+    "install"|"add")
         shift
         cmd_install "$@"
         ;;
@@ -1005,7 +1005,7 @@ case "$1" in
         # 智能建议逻辑
         case "$command" in
             intall|insall|instal)
-                echo -e "💡 您是不是想输入: ${CYAN}ash install${NC} ?"
+                echo -e "💡 您是不是想输入: ${CYAN}ash add${NC} ?"
                 ;;
             unintall|uninstal)
                 echo -e "💡 您是不是想输入: ${CYAN}ash uninstall${NC} ?"

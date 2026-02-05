@@ -114,18 +114,18 @@ ash info pdf       # Supports smart name matching
 Link a skill to your **User Home Directory** (`~/.ash/skills`).
 
 ```bash
-ash install pdf           # Install by name (Global)
-ash install --all         # Sync all 17+ skills to all IDEs at once
+ash add pdf               # Install by name (Global)
+ash add --all             # Sync all 17+ skills to all IDEs at once
 ```
 
-### 4. Project Mode (Local Install) 🆕
-Install skills directly into your **Current Project Directory**.
+### 4. Project Mode (Local Install) 🆕 (Aliases: `add`, `install`)
+Install a skill (e.g., `ash add expert`) directly into your **Current Project Directory**.
 ASH enforces `.claude/skills` consistency but **automatically bridges** to your IDE.
 
 ```bash
 cd my-project
-ash install java -p              # Install to ./.claude/skills
-ash install --all -p             # Install ALL skills to project
+ash add java -p              # Install to ./.claude/skills
+ash add --all -p             # Install ALL skills to project
 ```
 
 **Supported IDE Bridges**:

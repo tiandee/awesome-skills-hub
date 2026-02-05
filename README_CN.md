@@ -106,8 +106,8 @@ ash info pdf       # 支持模糊匹配名称
 将技能链接到您的 **用户家目录** (`~/.ash/skills`)，即刻在所有支持的 IDE 全局配置中生效。
 
 ```bash
-ash install pdf           # 智能通过名称安装 (全局)
-ash install --all         # 一键同步所有 17+ 技能到所有 IDE
+ash add pdf               # 智能通过名称安装 (全局)。(install 的现代别名)
+ash add --all             # 一键同步所有 17+ 技能到所有 IDE
 ```
 
 ### 4. 项目模式 (本地安装 / 项目级) 🆕
@@ -116,8 +116,8 @@ ASH 强制使用 `.claude/skills` 作为核心标准，并**自动桥接**到您
 
 ```bash
 cd my-project
-ash install java -p              # 安装到当前项目的 ./.claude/skills
-ash install --all -p             # 将所有技能批量注入当前项目
+ash add java -p              # 安装到当前项目的 ./.claude/skills
+ash add --all -p             # 将所有技能批量注入当前项目
 ```
 
 **支持自动桥接的 IDE**:
@@ -183,7 +183,7 @@ npm uninstall -g awesome-skills-hub
 
 ## 🧩 交互亮点
 
-- **智能纠错**：输错命令时（如 `ash intall`），工具会智能提示：“您是不是想输入 `ash install`？”
+- **智能纠错**：输错命令时（如 `ash ad`），工具会智能提示：“您是不是想输入 `ash add`？”
 - **透明反馈**：批量操作时提供清晰的 IDE 级汇总汇总报告，确保操作可审计。
 
 ## 🤝 支持平台

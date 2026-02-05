@@ -82,8 +82,9 @@ Awesome Skills Hub (ASH) - 跨平台 AI 技能管理工具
   help              显示此帮助信息
 
 示例:
-  ash install pdf
-  ash install --all
+  ash list                    # View all skills
+  ash add pdf                 # Install skill (Global)
+  ash add --all               # Install all skills
   ash info docx
 "@
 }
@@ -116,7 +117,7 @@ function Resolve-SkillPath($name) {
         Write-LogWarn "找到多个重名技能，请指定分类路径:"
         foreach ($m in $matches) {
             $rel = $m.FullName.Replace("$SKILLS_DIR\", "")
-            Write-Host "  • ash install $rel"
+            Write-Host "  • ash add $rel"
         }
         return "MULTIPLE"
     }
@@ -386,6 +387,7 @@ switch ($cmd) {
     "list"      { Invoke-List }
     "info"      { Invoke-Info $param }
     "install"   { Invoke-Install $param }
+    "add"       { Invoke-Install $param }
     "uninstall" { Invoke-Uninstall $param }
     "search"    { Invoke-Search $param }
     "status"    { Invoke-Status }
