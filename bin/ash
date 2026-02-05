@@ -148,6 +148,19 @@ show_help() {
 resolve_skill_path() {
     local input="$1"
     
+    # helper: check if path is inside an existing folder skill
+    is_inside_folder_skill() {
+        local check_path="$1"
+        local parent=$(dirname "$check_path")
+        while [ "$parent" != "." ] && [ "$parent" != "/" ]; do
+            if [ -f "$SKILLS_DIR/$parent/SKILL.md" ]; then
+                return 0 # Yes, it's inside
+            fi
+            parent=$(dirname "$parent")
+        done
+        return 1 # No
+    }
+
     # 1. 尝试直接匹配路径
     local direct_path="$SKILLS_DIR/$input"
     
@@ -159,12 +172,16 @@ resolve_skill_path() {
     
     # Check for File Skill
     if [ -f "$direct_path" ]; then
-        echo "$direct_path"
-        return 0
+        if ! is_inside_folder_skill "$input"; then
+            echo "$direct_path"
+            return 0
+        fi
     fi
     if [ -f "${direct_path}.md" ]; then
-        echo "${direct_path}.md"
-        return 0
+        if ! is_inside_folder_skill "${input}.md"; then
+            echo "${direct_path}.md"
+            return 0
+        fi
     fi
     
     # 2. 搜索：同时查找 .md 文件和目录型技能
@@ -172,7 +189,10 @@ resolve_skill_path() {
     
     # 查找 .md 文件
     while IFS= read -r file; do
-        matches+=("$file")
+        local rel="${file#$SKILLS_DIR/}"
+        if ! is_inside_folder_skill "$rel"; then
+            matches+=("$file")
+        fi
     done < <(find "$SKILLS_DIR" -type f -name "${input}.md")
     
     # 查找同名目录 (必须包含 SKILL.md)
@@ -538,37 +558,85 @@ cmd_search() {
 # Command: status
 # ------------------------------------------------------------------------------
 cmd_status() {
+    local full_mode=0
+    local target_ide=""
+    
+    # 解析参数
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --full|-v|--list)
+                full_mode=1
+                shift
+                ;;
+            *)
+                target_ide="$1"
+                full_mode=1 # 指定特定 IDE 时，自动进入详细模式
+                shift
+                ;;
+        esac
+    done
+
     log_info "已安装技能状态:"
+    if [ $full_mode -eq 0 ]; then
+        echo -e "${DIM}提示: 使用 'ash status --full' 或 'ash status <ide_name>' 查看详情${NC}"
+    fi
     echo ""
     
-    local found=0
-    
+    # 定义 IDE 名称 (供模糊匹配使用)
+    local ide_names=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local matched_any=0
+
     # Helper to check an IDE dir
     check_ide_status() {
         local ide_name="$1"
         local dir="$2"
         local found_in_ide=0
         
+        # 如果指定了 target_ide，进行模糊匹配过滤
+        if [ -n "$target_ide" ]; then
+            local ide_lower=$(echo "$ide_name" | tr '[:upper:]' '[:lower:]')
+            local target_lower=$(echo "$target_ide" | tr '[:upper:]' '[:lower:]')
+            if [[ "$ide_lower" != *"$target_lower"* ]]; then
+                return
+            fi
+            matched_any=1
+        fi
+
         if [ -d "$dir" ]; then
-            echo -e "  ${CYAN}${ide_name} ($dir):${NC}"
-            
-            # Enable nullglob to handle empty dirs correctly if no matches
+            # Enable nullglob to handle empty dirs correctly
             shopt -s nullglob
-            # Capture all symlinks (files or dirs)
             local links=("$dir"/*)
             shopt -u nullglob
             
+            # 统计有效链接
+            local valid_links=()
             for link in "${links[@]}"; do
                 if [ -L "$link" ]; then
-                    local target=$(readlink "$link")
-                    local name=$(basename "$link")
-                    echo -e "    ${GREEN}•${NC} $name -> $target"
+                    valid_links+=("$link")
                     ((found_in_ide++))
                 fi
             done
             
-            if [ $found_in_ide -eq 0 ]; then
-                echo -e "    ${YELLOW}(无)${NC}"
+            # 输出格式
+            if [ $full_mode -eq 1 ]; then
+                 echo -e "  ${CYAN}${ide_name} ($dir):${NC}"
+                 if [ ${#valid_links[@]} -eq 0 ]; then
+                     echo -e "    ${YELLOW}(无)${NC}"
+                 else
+                     for link in "${valid_links[@]}"; do
+                         local target=$(readlink "$link")
+                         local name=$(basename "$link")
+                         echo -e "    ${GREEN}•${NC} $name -> $target"
+                     done
+                 fi
+                 echo "" # 详细模式增加间距
+            else
+                # 紧凑模式
+                if [ $found_in_ide -gt 0 ]; then
+                    echo -e "  ${GREEN}✓${NC} ${CYAN}${ide_name}:${NC} 已部署 ${GREEN}$found_in_ide${NC} 个技能"
+                else
+                    echo -e "  ${DIM}○ ${ide_name}:${NC} ${YELLOW}未发现安装项${NC}"
+                fi
             fi
         fi
     }
@@ -582,7 +650,12 @@ cmd_status() {
     check_ide_status "Claude" "$CLAUDE_SKILLS_DIR"
     check_ide_status "Trae CN" "$TRAE_CN_SKILLS_DIR"
     
-    echo ""
+    if [ -n "$target_ide" ] && [ $matched_any -eq 0 ]; then
+        log_error "未找到名为 '$target_ide' 的 IDE。"
+        echo -e "可用名称: ${DIM}${ide_names[*]}${NC}"
+    fi
+
+    if [ $full_mode -eq 0 ]; then echo ""; fi
 }
 
 # ------------------------------------------------------------------------------
@@ -1195,7 +1268,7 @@ remove_all_links() {
         
         if [ -d "$dir" ]; then
             # 记录该 IDE 下移除的所有技能
-            for link in "$dir"/*.md; do
+            for link in "$dir"/*; do
                 if [ -L "$link" ]; then
                     local filename=$(basename "$link")
                     rm "$link"
@@ -1294,7 +1367,8 @@ case "$1" in
         cmd_search "$@"
         ;;
     status)
-        cmd_status
+        shift
+        cmd_status "$@"
         ;;
     "install"|"add")
         shift
