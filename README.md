@@ -19,7 +19,7 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 
 ## 🚀 Features
 
-- **Dual-Scope Management**: Support both **Global (Personal)** and **Project-Level (Team)** skill management.
+- **Dual-Scope Management**: Support both **Global Scope** (User Home `~/.ash/skills`) and **Project Scope** (Project-local IDE configuration).
 - **Universal IDE Bridge**: Automatically creates compatibility bridges for **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot**, unifying them under `.claude/skills`.
 - **Centralized "Homebrew"**: Keep all your prompts in one place (`~/.ash`), independent of specific IDE configurations.
 - **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
