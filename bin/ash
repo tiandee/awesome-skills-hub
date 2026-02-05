@@ -721,6 +721,124 @@ bridge_ide_rules() {
 }
 
 # ------------------------------------------------------------------------------
+# Helper: Download from GitHub (Cloud Integration)
+# ------------------------------------------------------------------------------
+download_github_skill() {
+    local repo_arg="$1"    # user/repo or user/repo/path
+    local skill_option="$2" # Optional: specified via --skill flag
+    
+    # 1. Parse user/repo and subdir
+    local user_repo=""
+    local subdir=""
+    
+    # Regex check: user/repo...
+    if [[ "$repo_arg" =~ ^([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)(/(.*))? ]]; then
+        local user="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
+        user_repo="${user}/${repo}"
+        subdir="${BASH_REMATCH[4]}" # Can be empty
+    fi
+    
+    # Override subdir if --skill flag is provided
+    if [ -n "$skill_option" ]; then
+        if [ -n "$subdir" ]; then
+             log_warn "路径冲突: URL中包含了子目录 '$subdir'，但同时也指定了 --skill '$skill_option'。" >&2
+             log_warn "将优先使用 --skill 参数。" >&2
+        fi
+        subdir="$skill_option"
+    fi
+    
+    log_info "☁️  正在从 GitHub 下载: ${CYAN}${user_repo}${NC} ..." >&2
+    if [ -n "$subdir" ]; then
+        log_info "   Target Subdir: $subdir" >&2
+    fi
+    
+    # 2. Clone to Temp Dir
+    local tmp_dir="$ASH_HOME/tmp/$(date +%s)_$RANDOM"
+    local clone_url="https://github.com/${user_repo}.git"
+    
+    mkdir -p "$tmp_dir"
+    git clone --depth 1 "$clone_url" "$tmp_dir" > /dev/null 2>&1
+    
+    if [ $? -ne 0 ]; then
+        log_error "GitHub 克隆失败。请检查仓库地址或网络连接。" >&2
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    
+    # 3. Locate Target Skill
+    local source_path="$tmp_dir"
+    if [ -n "$subdir" ]; then
+        source_path="$tmp_dir/$subdir"
+        if [ ! -d "$source_path" ]; then
+            log_error "未能在仓库中找到指定子目录: '$subdir'" >&2
+            rm -rf "$tmp_dir"
+            return 1
+        fi
+    fi
+    
+    # 4. Determine Skill Name & Validate
+    local skill_name=""
+    if [ -f "$source_path/SKILL.md" ]; then
+        # Folder Skill
+        skill_name=$(basename "$source_path")
+    elif [[ "$subdir" == *.md ]]; then
+         # Single File Skill specified explicitly
+         skill_name=$(basename "$source_path" .md)
+    else
+        # Try to find a single MD file if it's the repo root and no SKILL.md
+        if [ -f "$source_path/${repo}.md" ]; then
+            skill_name="$repo"
+            source_path="$source_path/${repo}.md"
+        else
+            # Fallback: Just use directory name
+            skill_name=$(basename "$source_path")
+        fi
+    fi
+    
+    # 5. Move to ~/.ash/skills/downloaded/
+    local download_root="$SKILLS_DIR/downloaded"
+    mkdir -p "$download_root"
+    
+    # Create unique name: user__repo__subdir
+    local safe_subdir=$(echo "$subdir" | tr '/' '_')
+    [ -z "$safe_subdir" ] && safe_subdir="root"
+    local unique_name="${user_repo/\//__}__${safe_subdir}"
+    
+    # If source is a file (single file skill)
+    if [ -f "$source_path" ]; then
+         local target_file="$download_root/${skill_name}.md"
+         mv "$source_path" "$target_file"
+         rm -rf "$tmp_dir"
+         echo "$target_file"
+         return 0
+    fi
+    
+    # If source is a directory
+    local target_dir="$download_root/$skill_name"
+    
+    # Check conflict
+    if [ -d "$target_dir" ]; then
+        log_warn "本地已存在同名技能: $skill_name" >&2
+        # Auto-confirm for now if non-interactive, or fail?
+        # Better to strictly require confirmation or use force flag (not implemented yet)
+        # For this context, let's try to ask, but since it's inside $() capture, input is tricky.
+        # Ideally we should use /dev/tty but that's complex.
+        # Fallback: Just fail if exists to be safe, or Force overwrite?
+        # Let's Fail with clearer message.
+        log_error "错误: 目标目录已存在且无法交互确认覆盖。" >&2
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    
+    mv "$source_path" "$target_dir"
+    rm -rf "$tmp_dir"
+    
+    echo "$target_dir"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Project Mode Core: Install to Project
 # ------------------------------------------------------------------------------
 install_to_project() {
@@ -781,6 +899,7 @@ cmd_install() {
     
     # Parse Arguments manually since we have optional flags
     shift # Remove first arg (skill_name)
+    local skill_option=""
     
     while [[ "$#" -gt 0 ]]; do
         case $1 in
@@ -791,6 +910,12 @@ cmd_install() {
                     shift
                 fi
                 ;;
+            --skill)
+                 if [[ -n "$2" ]]; then
+                    skill_option="$2"
+                    shift
+                 fi
+                 ;;
             *)
                 ;;
         esac
@@ -803,94 +928,49 @@ cmd_install() {
         return 1
     fi
 
+    local status=0
+    local skill_path=""
+    
+    # --- GitHub / Cloud Installer Logic ---
+    # Regex: Detect 'user/repo' pattern (simple check: contains / and not starting with / or .)
+    if [[ "$skill_name" =~ ^[a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+ ]]; then
+        skill_path=$(download_github_skill "$skill_name" "$skill_option")
+        status=$?
+        
+        if [ $status -ne 0 ]; then
+            return 1
+        fi
+        
+        # Reset skill_name to the basename of downloaded skill for linking
+        skill_name=$(basename "$skill_path")
+        if [[ "$skill_name" == *.md ]]; then
+             skill_name="${skill_name%.md}"
+        fi
+        
+        log_success "下载成功: ${CYAN}$skill_name${NC}"
+    else 
+        # --- Local Resolution Logic ---
+        skill_path=$(resolve_skill_path "$skill_name")
+        status=$?
+    
+        if [ $status -ne 0 ]; then
+            if [ $status -eq 1 ]; then
+                log_error "未找到技能: '$skill_name'"
+                # Suggestion Logic
+                local best_match=$(find "$SKILLS_DIR" -name "*.md" | xargs basename | grep -i "$skill_name" | head -n 1)
+                 if [ -n "$best_match" ]; then
+                    echo -e "💡 您是不是想安装: ${CYAN}${best_match%.md}${NC} ?"
+                fi
+            fi
+            return 1
+        fi
+    fi
+
     # --- Auto-Init Check (Global Mode Only) ---
     if [ "$mode" == "global" ]; then
         check_and_auto_init
     fi
-
-    # Handle --all
-    if [ "$skill_name" == "--all" ]; then
-        # 获取所有待安装的技能文件 (使用通用过滤函数)
-        local skill_files=()
-        while IFS= read -r path; do
-            skill_files+=("$path")
-        done < <(get_all_skills)
-        
-        local skill_count=${#skill_files[@]}
-        
-        # --- Project Mode Batch Install ---
-        if [ "$mode" == "project" ]; then
-             log_info "正在批量安装 $skill_count 个技能到项目..."
-             echo ""
-             for file in "${skill_files[@]}"; do
-                install_to_project "$file" "$project_path"
-             done
-             echo ""
-             log_success "项目级批量安装完成！"
-             return 0
-        fi
-
-        # --- Global Mode Batch Install ---
-        log_info "正在批量安装 $skill_count 个技能到所有检测到的 IDE..."
-        echo ""
-
-        # 定义 IDE 名称及其对应的路径
-        local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-        local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
-        
-        local updated_ides=()
-        local total_links=0
-        
-        # 逐个安装技能并显示列表风格的进度
-        for file in "${skill_files[@]}"; do
-            local filename=$(basename "$file")
-            local rel_path="${file#$SKILLS_DIR/}"
-            echo -e "  ${GREEN}•${NC} ${CYAN}$filename${NC} ${DIM}($rel_path)${NC}"
-            
-            for i in "${!ides[@]}"; do
-                local dir="${dirs[$i]}"
-                if [ -d "$dir" ]; then
-                    # Force link creation (directory or file)
-                    ln -sfn "$file" "$dir/$filename"
-                    ((total_links++))
-                fi
-            done
-        done
-
-        # 统计有效 IDE
-        for i in "${!ides[@]}"; do
-            [ -d "${dirs[$i]}" ] && updated_ides+=("${ides[$i]}")
-        done
-        
-        echo ""
-        if [ ${#updated_ides[@]} -gt 0 ]; then
-            local ides_list=$(IFS=,; echo "${updated_ides[*]}")
-            log_success "批量安装完成！"
-            echo -e "  ${CYAN}已同步 IDE:${NC} ${ides_list//,/、}"
-            echo -e "  ${CYAN}总链接数:${NC} $total_links"
-        else
-            log_warn "未检测到支持的 IDE 环境，请先运行 'ash init'"
-        fi
-        return 0
-    fi
-
-    # --- Existing Logic for Resolution ---
-    local skill_path
-    skill_path=$(resolve_skill_path "$skill_name")
-    local status=$?
     
-    if [ $status -ne 0 ]; then
-        if [ $status -eq 1 ]; then
-            log_error "未找到技能: '$skill_name'"
-            # Suggestion Logic
-            local best_match=$(find "$SKILLS_DIR" -name "*.md" | xargs basename | grep -i "$skill_name" | head -n 1)
-             if [ -n "$best_match" ]; then
-                echo -e "💡 您是不是想安装: ${CYAN}${best_match%.md}${NC} ?"
-            fi
-        fi
-        return 1
-    fi
-
     # --- Execution ---
     if [ "$mode" == "project" ]; then
         install_to_project "$skill_path" "$project_path"
