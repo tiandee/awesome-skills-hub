@@ -23,7 +23,7 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Universal IDE Bridge**: Automatically compatibilizes with **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot).
 - **Centralized "Homebrew"**: Keep all your prompts in one place, independent of IDE configs.
 - **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
-- **Vercel Labs Integration**: Auto-import skills downloaded via `npx skills` (See [Section 5](#5-vercel-labs-integration)).
+- **Ecosystem Integration**: Auto-import skills downloaded via `npx skills` (See [Ecosystem Integration](#-ecosystem-integration)).
 - **Smart Monorepo Discovery**: Interactive UI to scan and install skills from complex repositories (e.g., `huggingface/skills`).
 - **Meta-Skill (Self-Discovery)**: Empower your Agent to autonomously search and install the skills it needs (`ash search` -> `ash add`).
 

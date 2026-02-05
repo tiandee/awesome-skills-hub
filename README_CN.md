@@ -15,9 +15,8 @@
 - **通用 IDE 桥接**: 标准化的 `.claude/skills` 架构，自动生成兼容 **Cursor**, **Windsurf**, **TRAE**, **Antigravity** 和 **Copilot** 的桥接配置。
 - **Homebrew 式管理**：将技能统一托管在系统家目录 (`~/.ash`)，做 IDE 之外的"军火库"。
 - **实时软链**：本地更新技能文件，所有关联的 IDE 瞬间生效。
-- **Vercel Labs 集成**：支持自动导入 `npx skills` 下载的技能 (详见[第五节](#5-vercel-labs-生态集成-vercel-integration))。
+- **生态集成**：支持自动导入 `npx skills` 下载的技能 (详见[生态集成节](#-生态集成-ecosystem-integration))。
 - **智能 Monorepo 发现**: 交互式扫描并安装复杂仓库中的技能（支持多选/全选，如 `huggingface/skills`）。
-- **元技能 (自我进化)**: 让 Agent 学会自主使用 `ash` 来扩展自己的能力 (`ash search` -> `ash add`)。
 
 ## 💡 为什么选择 ASH? ("桥梁"哲学)
 
