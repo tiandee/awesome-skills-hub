@@ -15,7 +15,7 @@
 - **通用 IDE 桥接**: 标准化的 `.claude/skills` 架构，自动生成兼容 **Cursor**, **Windsurf**, **TRAE**, **Antigravity** 和 **Copilot** 的桥接配置。
 - **Homebrew 式管理**：将技能统一托管在系统家目录 (`~/.ash`)，做 IDE 之外的"军火库"。
 - **实时软链**：本地更新技能文件，所有关联的 IDE 瞬间生效。
-- **智能交互**：支持模糊搜索、批量安装以及拼写纠错。
+- **Vercel Labs 集成**：支持自动导入 `npx skills` 下载的技能 (详见[第五节](#5-vercel-labs-生态集成-vercel-integration-🆕))。
 
 ---
 
@@ -127,13 +127,28 @@ ash add --all -p             # 将所有技能批量注入当前项目
 ![Antigravity](https://img.shields.io/badge/Antigravity-Supported-4285F4?logo=google)
 ![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
-### 5. 状态与搜索
+
+### 5. Vercel Labs 生态集成 (Vercel Integration) 🆕
+**ASH 能够自动感知并导入 Vercel 生态的技能。**
+Vercel 官方推出了 `npx skills` 工具，它将技能下载到 `~/.agents/skills`。ASH 可以自动扫描该目录，将上面的优质技能**一键桥接**到所有 IDE 中。
+
+1. **下载**: 使用 Vercel 工具下载你喜欢的技能：
+   ```bash
+   npx skills add user/repo
+   ```
+2. **同步**: 让 ASH 接管并分发：
+   ```bash
+   ash sync
+   ```
+   *(此时 ASH 会提示发现新技能，确认后即可在 Cursor/Windsurf 等工具中直接使用)*
+
+### 6. 状态与搜索
 ```bash
 ash search web            # 关键词搜索
 ash status                # 查看当前安装映射状态
 ```
 
-### 6. 清理与重置
+### 7. 清理与重置
 一键清空指定 IDE 或所有 IDE 的技能链接。
 
 ```bash
@@ -141,7 +156,7 @@ ash clean cursor          # 仅清空 Cursor 的技能
 ash clean --all           # 清空所有 IDE 的技能 (核弹选项)
 ```
 
-### 7. 卸载技能
+### 8. 卸载技能
 移除技能链接。
 
 ```bash
@@ -149,14 +164,14 @@ ash uninstall pdf         # 卸载指定技能
 ash uninstall --all       # (同 clean --all)
 ```
 
-### 8. 同步技能库
+### 9. 同步技能库
 从源码仓库或远程同步最新的技能到全局目录。
 
 ```bash
 ash sync
 ```
 
-### 9. CLI 工具维护
+### 10. CLI 工具维护
 管理 `ash` 工具本身：
 
 ```bash

@@ -23,7 +23,7 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Universal IDE Bridge**: Automatically compatibilizes with **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot).
 - **Centralized "Homebrew"**: Keep all your prompts in one place, independent of IDE configs.
 - **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
-- **Smart Interaction**: Name-based installation, batch operations, and "Did you mean?" suggestions.
+- **Vercel Labs Integration**: Auto-import skills downloaded via `npx skills` (See [Section 5](#5-vercel-labs-integration-🆕)).
 
 ---
 
@@ -135,13 +135,28 @@ ash add --all -p             # Install ALL skills to project
 ![Antigravity](https://img.shields.io/badge/Antigravity-Supported-4285F4?logo=google)
 ![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
-### 5. Search & Status
+
+### 5. Vercel Labs Integration 🆕
+**ASH can automatically detect and import skills from the Vercel ecosystem.**
+Vercel's official `npx skills` tool downloads skills to `~/.agents/skills`. ASH can scan this directory and **instantly bridge** those high-quality skills to all your IDEs.
+
+1. **Download**: Use Vercel's tool to grab a skill:
+   ```bash
+   npx skills add user/repo
+   ```
+2. **Sync**: Let ASH take over and distribute:
+   ```bash
+   ash sync
+   ```
+   *(ASH will prompt you about the new skills found. Once confirmed, they are available in Cursor, Windsurf, etc.)*
+
+### 6. Search & Status
 ```bash
 ash search web            # Keyword search
 ash status                # Check current installation map
 ```
 
-### 6. Clean & Reset
+### 7. Clean & Reset
 Instantly clear skill links.
 
 ```bash
@@ -149,7 +164,7 @@ ash clean cursor          # Clear Cursor skills only
 ash clean --all           # Clear ALL IDE skills
 ```
 
-### 7. Uninstall
+### 8. Uninstall
 Remove specific symlinks.
 
 ```bash
@@ -157,14 +172,14 @@ ash uninstall pdf         # Uninstall specific skill
 ash uninstall --all       # (Same as clean --all)
 ```
 
-### 8. Sync Skills
+### 9. Sync Skills
 Pull latest skills to Global Home.
 
 ```bash
 ash sync
 ```
 
-### 9. CLI Maintenance
+### 10. CLI Maintenance
 Manage the tool itself.
 
 ```bash

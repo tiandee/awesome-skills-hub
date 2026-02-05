@@ -305,8 +305,86 @@ cmd_sync() {
     fi
     
     log_success "同步完成！您可以运行 'ash list' 查看最新技能。"
+    
+    # --- Vercel Labs Integration ---
+    import_from_vercel
 }
 
+# ------------------------------------------------------------------------------
+# Helper: Import from Vercel/Agents (~/.agents/skills)
+# ------------------------------------------------------------------------------
+import_from_vercel() {
+    local vercel_dir="$HOME/.agents/skills"
+    
+    # 1. Check if Vercel directory exists
+    if [ ! -d "$vercel_dir" ]; then
+        return
+    fi
+    
+    # 2. Find new skills (not present in ~/.ash/skills)
+    local new_skills=()
+    local count=0
+    
+    # Iterate over files/dirs in ~/.agents/skills
+    for item in "$vercel_dir"/*; do
+        [ -e "$item" ] || continue
+        
+        local name=$(basename "$item")
+        
+        # Skip if already exists in ASH (Source of Truth)
+        if [ -e "$SKILLS_DIR/$name" ] || [ -e "$SKILLS_DIR/${name}.md" ]; then
+            continue
+        fi
+        
+        new_skills+=("$item")
+        ((count++))
+    done
+    
+    if [ $count -eq 0 ]; then
+        return
+    fi
+    
+    echo ""
+    log_info "🔍 发现来自 Vercel/Agents 生态的新技能 ($count 个):"
+    for item in "${new_skills[@]}"; do
+        echo -e "  ${GREEN}+${NC} $(basename "$item")"
+    done
+    echo ""
+    
+    # 3. Ask for import
+    echo -e "${YELLOW}是否将这些技能导入 ASH 并分发到所有 IDE?${NC}"
+    read -p "确认导入? [Y/n] " confirm
+    if [[ "$confirm" == "n" || "$confirm" == "N" ]]; then
+        echo "已跳过导入。"
+        return
+    fi
+    
+    # 4. Import & Bridge
+    local success_count=0
+    for source in "${new_skills[@]}"; do
+        local name=$(basename "$source")
+        local target="$SKILLS_DIR/$name"
+        
+        # Strategy: Copy (Fork) to own the config
+        cp -r "$source" "$target"
+        
+        if [ $? -eq 0 ]; then
+            log_success "已导入: $name"
+            
+            # Trigger Bridge Engine (Install to all IDEs)
+            install_skill_file "$target" > /dev/null
+            ((success_count++))
+        else
+            log_error "导入失败: $name"
+        fi
+    done
+    
+    if [ $success_count -gt 0 ]; then
+        echo ""
+        log_success "成功导入并分发了 $success_count 个外部技能！"
+        echo -e "提示: 您现在可以使用 ${CYAN}ash info <name>${NC} 来查看它们。"
+    fi
+}
 # ------------------------------------------------------------------------------
 # Command: list
 # ------------------------------------------------------------------------------
