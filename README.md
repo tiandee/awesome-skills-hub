@@ -28,7 +28,15 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 
 ## 📦 Installation
 
-### 1. Quick Install (Recommended)
+### 1. Zero-Install (Try it out)
+Run instantly without installing anything:
+
+```bash
+npx awesome-skills-hub list
+npx awesome-skills-hub info pdf
+```
+
+### 2. Quick Install (Recommended)
 
 **Via NPM (Cross-Platform):**
 ```bash
