@@ -739,6 +739,31 @@ download_github_skill() {
         subdir="${BASH_REMATCH[4]}" # Can be empty
     fi
     
+    # --- Security Check: Third Party Repository ---
+    # Whitelisted Orgs/Users
+    local trusted_orgs="tiandee|anthropics|huggingface|vercel-labs|aws-samples|microsoft|google|openai"
+    local repo_owner=$(echo "$user_repo" | cut -d'/' -f1)
+    
+    if [[ ! "$repo_owner" =~ ^($trusted_orgs)$ ]]; then
+        log_warn "⚠️  安全警告: 您正在安装来自第三方组织 '$repo_owner' 的技能。" >&2
+        log_warn "   Source: https://github.com/${user_repo}" >&2
+        echo -e "${YELLOW}   请确保您信任该作者，并在安装后检查代码。${NC}" >&2
+        
+        # Interactive confirmation
+        if [ -t 0 ]; then
+            read -p "❓ 是否继续安装? [y/N] " confirm < /dev/tty
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                log_error "已取消安装。" >&2
+                return 1
+            fi
+        else
+            # Non-interactive mode (e.g. CI), warn but proceed enabled? 
+            # Or fail safe? Let's warn but proceed to verify 
+            # Or require --force (future). For now, allow but log.
+            log_warn "非交互模式: 自动继续安装。" >&2
+        fi
+    fi
+
     # Override subdir if --skill flag is provided
     if [ -n "$skill_option" ]; then
         if [ -n "$subdir" ]; then
