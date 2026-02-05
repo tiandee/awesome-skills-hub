@@ -1,11 +1,10 @@
 {
-    "name": "awesome-skills-hub",
-    "version": "1.1.19",
+    "name": "askill",
+    "version": "1.1.20",
     "description": "The 'Homebrew' for AI IDE Skills - Write Once, Link Everywhere.",
     "main": "index.js",
     "bin": {
         "ash": "bin/ash-wrapper.js",
-        "awesome-skills-hub": "./bin/ash",
         "askill": "./bin/ash"
     },
     "scripts": {
