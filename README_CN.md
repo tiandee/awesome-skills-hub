@@ -15,7 +15,7 @@
 - **通用 IDE 桥接**: 标准化的 `.claude/skills` 架构，自动生成兼容 **Cursor**, **Windsurf**, **TRAE**, **Antigravity** 和 **Copilot** 的桥接配置。
 - **Homebrew 式管理**：将技能统一托管在系统家目录 (`~/.ash`)，做 IDE 之外的"军火库"。
 - **实时软链**：本地更新技能文件，所有关联的 IDE 瞬间生效。
-- **Vercel Labs 集成**：支持自动导入 `npx skills` 下载的技能 (详见[第五节](#5-vercel-labs-生态集成-vercel-integration-🆕))。
+- **Vercel Labs 集成**：支持自动导入 `npx skills` 下载的技能 (详见[第五节](#5-vercel-labs-生态集成-vercel-integration))。
 
 ---
 
@@ -128,7 +128,7 @@ ash add --all -p             # 将所有技能批量注入当前项目
 ![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
 
 
-### 5. Vercel Labs 生态集成 (Vercel Integration) 🆕
+### 5. Vercel Labs 生态集成 (Vercel Integration)
 **ASH 能够自动感知并导入 Vercel 生态的技能。**
 Vercel 官方推出了 `npx skills` 工具，它将技能下载到 `~/.agents/skills`。ASH 可以自动扫描该目录，将上面的优质技能**一键桥接**到所有 IDE 中。
 
