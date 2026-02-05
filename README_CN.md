@@ -144,7 +144,7 @@ Vercel 官方推出了 `npx skills` 工具，它将技能下载到 `~/.agents/sk
 
 ### 💡 资源推荐
 想要寻找优质的中文 Skill？推荐访问 **[Skill Hub 中国](https://www.skill-cn.com)**。
-该网站收录了大量高质量的 Prompt 技能，例如 Anthropic 官方的前端设计技能：
+该网站收录了大量高质量的 agent 技能，例如 Anthropic 官方的前端设计技能：
 
 ```bash
 # 示例：安装 Anthropic 的 frontend-design 技能
