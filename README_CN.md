@@ -92,17 +92,35 @@ ash info pdf       # 支持模糊匹配名称
 将技能安装（链接）到所有检测到的 IDE。支持**智能路径解析**，您无需输入完整路径。
 
 ```bash
-ash install pdf           # 智能通过名称安装
-ash install --all         # 一键同步所有 16+ 技能到所有 IDE
+ash install pdf           # 智能通过名称安装 (全局)
+ash install --all         # 一键同步所有 17+ 技能到所有 IDE
 ```
 
-### 4. 状态与搜索
+### 4. 项目模式 (本地安装) 🆕
+将技能直接安装到项目目录中，方便团队共享或隔离使用。
+ASH 强制使用 `.claude/skills` 作为核心标准，并**自动桥接**到您当前的 IDE 配置目录。
+
+```bash
+cd my-project
+ash install java -p              # 安装到当前项目的 ./.claude/skills
+ash install --all -p             # 将所有技能批量注入当前项目
+```
+
+**支持自动桥接的 IDE**:
+- `.cursor/skills` (Cursor)
+- `.windsurf/skills` (Windsurf)
+- `.trae/skills` (TRAE)
+- `.trae-cn/skills` (TRAE CN)
+- `.agent/skills` (Antigravity)
+- `.copilot/skills` (Copilot)
+
+### 5. 状态与搜索
 ```bash
 ash search web            # 关键词搜索
 ash status                # 查看当前安装映射状态
 ```
 
-### 5. 清理与重置
+### 6. 清理与重置
 一键清空指定 IDE 或所有 IDE 的技能链接（不会删除源码）。
 
 ```bash
@@ -110,7 +128,7 @@ ash clean cursor          # 仅清空 Cursor 的技能
 ash clean --all           # 清空所有 IDE 的技能 (核弹选项)
 ```
 
-### 6. 卸载技能
+### 7. 卸载技能
 移除技能链接。支持 `--all` 标志一键清理。
 
 ```bash
@@ -118,7 +136,7 @@ ash uninstall pdf         # 卸载指定技能
 ash uninstall --all       # (同 clean --all)
 ```
 
-### 7. 同步更新
+### 8. 同步更新
 从源码仓库或远程同步最新的技能到全局目录。
 
 ```bash
@@ -147,6 +165,8 @@ awesome-skills-hub/
 └── install.sh               # 安装脚本
 ```
 
+## 🧩 交互亮点
+
 - **智能纠错**：输错命令时（如 `ash intall`），工具会智能提示：“您是不是想输入 `ash install`？”
 - **透明反馈**：批量操作时提供清晰的 IDE 级汇总汇总报告，确保操作可审计。
 
@@ -167,8 +187,8 @@ awesome-skills-hub/
 欢迎贡献您的实用提示词或规则！
 
 1. Fork 本仓库。
-2. 在 `skills/<category>/<name>.md` 中创建您的技能文件。
-3. 参考 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详细指南。
+2. 在 `skills/<name>/` 中创建您技能目录。
+3. 添加 `SKILL.md` (内容) 和可选的 `scripts/`。
 4. 提交 Pull Request。
 
 ## 📄 开源协议

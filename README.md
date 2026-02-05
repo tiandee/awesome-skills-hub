@@ -93,17 +93,35 @@ ash info pdf       # Supports smart name matching
 Link a skill to all detected IDEs. Support **Smart Path Resolution**—no need to type full paths.
 
 ```bash
-ash install pdf           # Install by name
-ash install --all         # Sync all 16+ skills to all IDEs at once
+ash install pdf           # Install by name (Global)
+ash install --all         # Sync all 17+ skills to all IDEs at once
 ```
 
-### 4. Search & Status
+### 4. Project Mode (Local Install) 🆕
+Install skills directly into your project for team sharing or isolation.
+ASH enforces `.claude/skills` as the standard source of truth but **automatically bridges** to your IDE.
+
+```bash
+cd my-project
+ash install java -p              # Install to ./.claude/skills
+ash install --all -p             # Install ALL skills to project
+```
+
+**Supported Bridges (Auto-Created)**:
+- `.cursor/skills` (Cursor)
+- `.windsurf/skills` (Windsurf)
+- `.trae/skills` (TRAE)
+- `.trae-cn/skills` (TRAE CN)
+- `.agent/skills` (Antigravity)
+- `.copilot/skills` (Copilot)
+
+### 5. Search & Status
 ```bash
 ash search web            # Keyword search
 ash status                # Check current installation map
 ```
 
-### 5. Clean & Reset
+### 6. Clean & Reset
 Instantly clear skill links from distinct IDEs or all of them.
 
 ```bash
@@ -111,7 +129,7 @@ ash clean cursor          # Clear Cursor skills only
 ash clean --all           # Clear ALL IDE skills (Nuclear option)
 ```
 
-### 6. Uninstall
+### 7. Uninstall
 Remove specific symlinks.
 
 ```bash
@@ -119,7 +137,7 @@ ash uninstall pdf         # Uninstall specific skill
 ash uninstall --all       # (Same as clean --all)
 ```
 
-### 7. Update
+### 8. Update
 Pull the latest skills from the repository and sync them to your global home.
 
 ```bash
@@ -170,8 +188,8 @@ awesome-skills-hub/
 Got a killer prompt or a useful rule? We'd love to have it!
 
 1. Fork the repository.
-2. Create your skill file in `skills/<category>/<name>.md`.
-3. detailed instructions in [CONTRIBUTING.md](CONTRIBUTING.md).
+2. Create your skill directory in `skills/<name>/`.
+3. Add `SKILL.md` (content) and optional `scripts/`.
 4. Submit a Pull Request.
 
 ## 📄 License

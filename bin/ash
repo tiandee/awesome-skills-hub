@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.10"
+VERSION="1.1.11"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -598,24 +598,105 @@ install_skill_file() {
         local type_label="文件"
         [ $is_dir -eq 1 ] && type_label="目录包"
         
-        # 将数组转换为逗号分隔字符串
-        local ides_str=$(IFS=,; echo "${installed_ides[*]}")
-        ides_str="${ides_str//,/, }"
-        
         log_success "已安装 $type_label: $filename (${source_path#$SKILLS_DIR/})"
         echo -e "  ${DIM}↳ 同步至 ${installed} 个 IDE: [${CYAN}${ides_str}${DIM}]${NC}"
     fi
     return $installed
 }
 
+# ------------------------------------------------------------------------------
+# Project Mode Helper: Bridge IDE Rules
+# 确保其他 IDE (Cursor, Windsurf, TRAE, Agent, etc.) 能看到 .claude/skills 中的技能
+# ------------------------------------------------------------------------------
+bridge_ide_rules() {
+    local project_root="$1"
+    local skill_name="$2"     # e.g., "java.md"
+    local source_file="$3"    # Absolute path to skill in .claude/skills/
+
+    # 定义 IDE 配置映射
+    # Logic: If project_root/.<ide> exists, create .<ide>/skills link
+    local ide_dirs=("cursor" "windsurf" "trae" "trae-cn" "agent" "copilot")
+    local ide_names=("Cursor" "Windsurf" "TRAE" "Trae CN" "Antigravity" "Copilot")
+
+    for i in "${!ide_dirs[@]}"; do
+        local dir_name=".${ide_dirs[$i]}"     # e.g., .cursor
+        local pretty_name="${ide_names[$i]}"  # e.g., Cursor
+        
+        if [ -d "$project_root/$dir_name" ]; then
+            local skills_dir="$project_root/$dir_name/skills"
+            mkdir -p "$skills_dir"
+            
+            local target="$skills_dir/$skill_name"
+            # Link to .claude source
+            ln -sf "$source_file" "$target"
+            log_info "  ↳ Bridge ($pretty_name): $dir_name/skills/$skill_name -> .claude"
+        fi
+    done
+}
+
+# ------------------------------------------------------------------------------
+# Project Mode Core: Install to Project
+# ------------------------------------------------------------------------------
+install_to_project() {
+    local skill_path="$1"
+    local project_path="$2"
+    
+    # 1. 确定项目根目录
+    if [ -z "$project_path" ]; then
+        project_path=$(pwd)
+    fi
+    # Resolve absolute path for project_path
+    project_path=$(cd "$project_path" && pwd)
+
+    local filename=$(basename "$skill_path")
+    
+    # 2. 建立标准存储: .claude/skills (Single Source of Truth)
+    local claude_skills="$project_path/.claude/skills"
+    mkdir -p "$claude_skills"
+    
+    local target="$claude_skills/$filename"
+    
+    # 3. 安装到 .claude/skills
+    ln -sfn "$skill_path" "$target"
+    log_success "已安装到项目: ${CYAN}.claude/skills/$filename${NC}"
+    
+    # 4. 建立 IDE 桥接
+    bridge_ide_rules "$project_path" "$filename" "$target"
+}
+
+# ------------------------------------------------------------------------------
+# Command: install
+# ------------------------------------------------------------------------------
 cmd_install() {
     local skill_name="$1"
+    local mode="global"
+    local project_path=""
     
+    # Parse Arguments manually since we have optional flags
+    shift # Remove first arg (skill_name)
+    
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+            -p|--project)
+                mode="project"
+                if [[ -n "$2" && "$2" != -* ]]; then
+                    project_path="$2"
+                    shift
+                fi
+                ;;
+            *)
+                ;;
+        esac
+        shift
+    done
+
     if [ -z "$skill_name" ]; then
-        log_error "请指定技能名称 (例如: pdf 或 --all)"
+        log_error "请指定要安装的技能名称。"
+        echo "用法: ash install <name> [-p [path]]"
         return 1
     fi
 
+    # Handle --all
     if [ "$skill_name" == "--all" ]; then
         # 获取所有待安装的技能文件 (使用通用过滤函数)
         local skill_files=()
@@ -624,6 +705,20 @@ cmd_install() {
         done < <(get_all_skills)
         
         local skill_count=${#skill_files[@]}
+        
+        # --- Project Mode Batch Install ---
+        if [ "$mode" == "project" ]; then
+             log_info "正在批量安装 $skill_count 个技能到项目..."
+             echo ""
+             for file in "${skill_files[@]}"; do
+                install_to_project "$file" "$project_path"
+             done
+             echo ""
+             log_success "项目级批量安装完成！"
+             return 0
+        fi
+
+        # --- Global Mode Batch Install ---
         log_info "正在批量安装 $skill_count 个技能到所有检测到的 IDE..."
         echo ""
 
@@ -666,28 +761,62 @@ cmd_install() {
         fi
         return 0
     fi
+
+    # --- Existing Logic for Resolution ---
+    local skill_path
+    skill_path=$(resolve_skill_path "$skill_name")
+    local status=$?
     
-    local source_file
-    source_file=$(resolve_skill_path "$skill_name")
-    local ret=$?
-    
-    if [ $ret -eq 1 ]; then
-        log_error "技能未找到: $skill_name"
-        log_info "使用 'ash list' 查看可用技能"
-        return 1
-    elif [ $ret -eq 2 ]; then
+    if [ $status -ne 0 ]; then
+        if [ $status -eq 1 ]; then
+            log_error "未找到技能: '$skill_name'"
+            # Suggestion Logic
+            local best_match=$(find "$SKILLS_DIR" -name "*.md" | xargs basename | grep -i "$skill_name" | head -n 1)
+             if [ -n "$best_match" ]; then
+                echo -e "💡 您是不是想安装: ${CYAN}${best_match%.md}${NC} ?"
+            fi
+        fi
         return 1
     fi
-    
-    # Safety Check: Ensure the resolved path valid (file or directory)
-    if [ ! -e "$source_file" ]; then
-        log_error "内部错误：解析到的路径无效。"
-        return 1
-    fi
-    
-    install_skill_file "$source_file"
-    if [ $? -eq 0 ]; then
-        log_warn "未找到可安装的目标目录，请先运行 'ash init'"
+
+    # --- Execution ---
+    if [ "$mode" == "project" ]; then
+        install_to_project "$skill_path" "$project_path"
+    else
+        # Global Install (Original Logic)
+        local filename=$(basename "$skill_path")
+        local rel_path="${skill_path#$SKILLS_DIR/}"
+        
+        log_success "已安装 ${CYAN}$filename${NC} ($rel_path)"
+        
+        local count=0
+        local updated_ides=() # Use array to store list
+        
+        # ... (Existing loop for global IDEs) ...
+        local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+        local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+        
+        for i in "${!ides[@]}"; do
+            local ide_name="${ides[$i]}"
+            local dir="${dirs[$i]}"
+            
+            if [ -d "$dir" ]; then
+                # Force link creation (ln -sf for file, ln -sfn for dir)
+                ln -sfn "$skill_path" "$dir/$filename"
+                ((count++))
+                updated_ides+=("$ide_name")
+            fi
+        done
+        
+        if [ $count -gt 0 ]; then
+             # Format the array output properly e.g. [Cursor, Claude]
+             local ide_list_str=$(IFS=, ; echo "${updated_ides[*]}")
+             ide_list_str=$(echo "$ide_list_str" | sed 's/,/, /g')
+             echo -e "  ↳ 同步至 $count 个 IDE: [${GREEN}$ide_list_str${NC}]"
+        else
+            log_warn "未检测到任何已初始化的 IDE 技能目录。"
+            echo "提示: 请先运行 'ash init' 或手动创建目录。"
+        fi
     fi
 }
 
