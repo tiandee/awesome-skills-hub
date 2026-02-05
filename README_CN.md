@@ -21,7 +21,7 @@
 
 ## 💡 为什么选择 ASH? ("桥梁"哲学)
 
-与那些仅提供**静态技能内容**下载（仓库型）或试图统一所有 Agent 格式（加载器型）的工具不同，**ASH** 的定位是一座物理 **桥梁 (Bridge)**。
+与那些仅提供**skills**下载（仓库型）或试图统一所有 Agent 格式（加载器型）的工具不同，**ASH** 的定位是一座物理 **桥梁 (Bridge)**。
 
 | 特性 | 🛠️ 其他工具 (如 OpenSkills) | 🚀 ASH (本项目) |
 | :--- | :--- | :--- |
@@ -201,16 +201,16 @@ ash sync
 
 ```bash
 # 升级到最新版本
-npm update -g awesome-skills-hub
+npm update -g askill
 
 # 查看当前已安装版本
-npm list -g awesome-skills-hub
+npm list -g askill
 
 # 查询远程最新版本号
-npm view awesome-skills-hub version
+npm view askill version
 
 # 卸载 CLI 工具
-npm uninstall -g awesome-skills-hub
+npm uninstall -g askill
 ```
 
 ---

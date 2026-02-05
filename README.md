@@ -209,16 +209,16 @@ Manage the tool itself.
 
 ```bash
 # Upgrade to the latest version
-npm update -g awesome-skills-hub
+npm update -g askill
 
 # Check current installed version
-npm list -g awesome-skills-hub
+npm list -g askill
 
 # Check latest available version on NPM
-npm view awesome-skills-hub version
+npm view askill version
 
 # Uninstall CLI tool
-npm uninstall -g awesome-skills-hub
+npm uninstall -g askill
 ```
 
 ---
