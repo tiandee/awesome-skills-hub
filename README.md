@@ -24,6 +24,19 @@ Instead of copying and pasting your favorite "Expert Java Developer" prompt into
 - **Centralized "Homebrew"**: Keep all your prompts in one place, independent of IDE configs.
 - **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
 - **Vercel Labs Integration**: Auto-import skills downloaded via `npx skills` (See [Section 5](#5-vercel-labs-integration)).
+- **Smart Monorepo Discovery**: Interactive UI to scan and install skills from complex repositories (e.g., `huggingface/skills`).
+- **Meta-Skill (Self-Discovery)**: Empower your Agent to autonomously search and install the skills it needs (`ash search` -> `ash add`).
+
+## 💡 Why ASH? (The "Bridge" Philosophy)
+
+Unlike other tools that just *download* **static skill content** (Repository) or try to *convert* formats (Loader), **ASH** acts as a physical **Bridge**.
+
+| Feature | 🛠️ Other Tools (e.g., OpenSkills) | 🚀 ASH (This Tool) |
+| :--- | :--- | :--- |
+| **Philosophy** | **Loader**: Generates config files usually only for one Agent. | **Bridge**: Delivers skills directly to the IDE's doorstep (`~/.cursor/skills`, etc.). |
+| **Compatibility** | Requires Agent to support a specific standard. | **Universal**: Works immediately with Cursor, Windsurf, Trae, etc., without waiting for plugin support. |
+| **Distribution** | "One Skill, One Install" | **"Write Once, Link Everywhere"**: Install a skill once, and it syncs to 8+ IDEs instantly. |
+| **Discovery** | Manual Path Entry | **Interactive Monorepo Scanning**: Auto-detects skills in subfolders. |
 
 ---
 
