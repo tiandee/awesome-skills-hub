@@ -997,6 +997,50 @@ check_and_auto_init() {
 # ------------------------------------------------------------------------------
 # Command: install
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Helper: Execute installation for a single skill (Global or Project)
+# ------------------------------------------------------------------------------
+execute_skill_installation() {
+    local skill_path="$1"
+    local mode="$2"
+    local project_path="$3"
+
+    if [ "$mode" == "project" ]; then
+        install_to_project "$skill_path" "$project_path"
+    else
+        # Global Install (Original Logic)
+        local filename=$(basename "$skill_path")
+        local rel_path="${skill_path#$SKILLS_DIR/}"
+        
+        log_success "已安装 ${CYAN}$filename${NC} ($rel_path)"
+        
+        local count=0
+        local updated_ides=() # Use array to store list
+        
+        local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+        local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+        
+        for i in "${!ides[@]}"; do
+            local ide_name="${ides[$i]}"
+            local dir="${dirs[$i]}"
+            
+            if [ -d "$dir" ]; then
+                # Link creation
+                ln -sfn "$skill_path" "$dir/$filename"
+                ((count++))
+                updated_ides+=("$ide_name")
+            fi
+        done
+        
+        if [ $count -gt 0 ]; then
+             local ide_list_str=$(IFS=, ; echo "${updated_ides[*]}")
+             ide_list_str=$(echo "$ide_list_str" | sed 's/,/, /g')
+             echo -e "  ↳ 同步至 $count 个 IDE: [${GREEN}$ide_list_str${NC}]"
+        else
+            log_warn "未检测到任何已初始化的 IDE 技能目录。"
+        fi
+    fi
+}
 cmd_install() {
     local skill_name="$1"
     local mode="global"
@@ -1033,6 +1077,26 @@ cmd_install() {
         return 1
     fi
 
+    # --- Special Case: --all (Install/Sync all local skills) ---
+    if [ "$skill_name" == "--all" ]; then
+        log_info "正在批量安装所有本地技能..."
+        
+        # Auto-Init Check (Global Mode Only)
+        if [ "$mode" == "global" ]; then
+            check_and_auto_init
+        fi
+        
+        local total=0
+        while IFS= read -r skill_path; do
+            if [ -z "$skill_path" ]; then continue; fi
+            execute_skill_installation "$skill_path" "$mode" "$project_path"
+            ((total++))
+        done < <(get_all_skills)
+        
+        log_success "批量安装完成！共处理 $total 个技能。"
+        return 0
+    fi
+
     local status=0
     # Store output in a variable to handle multiple lines
     local install_output=""
@@ -1065,51 +1129,7 @@ cmd_install() {
             fi
             
             # --- Execution ---
-            if [ "$mode" == "project" ]; then
-                install_to_project "$skill_path" "$project_path"
-            else
-                # Global Install (Original Logic)
-                # Ensure install_skill_file uses absolute path or correct logic
-                # We need to call the logic block below for EACH skill.
-                # To avoid code duplication, it's better to extract the "install single global skill" logic
-                # But for now, let's inline or use the existing block context?
-                # The existing block L1051-L1085 is outside this if/else structure at the bottom.
-                # Refactoring Strategy:
-                # Move the "Execution" block (L1048+) into a helper function `install_globally_single`?
-                # Or just handle it here.
-                
-                # Let's call the bottom logic? No, the bottom logic is "Execution".
-                # If we loop here, we consume the execution.
-                # So we must perform the execution inside this loop.
-                
-                local filename=$(basename "$skill_path")
-                local rel_path="${skill_path#$SKILLS_DIR/}"
-                
-                log_success "已安装 ${CYAN}$filename${NC} ($rel_path)"
-                
-                local count=0
-                local updated_ides=()
-                local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-                local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
-                
-                for i in "${!ides[@]}"; do
-                    local ide_name="${ides[$i]}"
-                    local dir="${dirs[$i]}"
-                    if [ -d "$dir" ]; then
-                        ln -sfn "$skill_path" "$dir/$filename"
-                        ((count++))
-                        updated_ides+=("$ide_name")
-                    fi
-                done
-                
-                if [ $count -gt 0 ]; then
-                     local ide_list_str=$(IFS=, ; echo "${updated_ides[*]}")
-                     ide_list_str=$(echo "$ide_list_str" | sed 's/,/, /g')
-                     echo -e "  ↳ 同步至 $count 个 IDE: [${GREEN}$ide_list_str${NC}]"
-                else
-                    log_warn "未检测到任何已初始化的 IDE 技能目录。"
-                fi
-            fi
+            execute_skill_installation "$skill_path" "$mode" "$project_path"
              
         done <<< "$install_output"
         return 0
@@ -1141,44 +1161,7 @@ cmd_install() {
     fi
     
     # --- Execution ---
-    if [ "$mode" == "project" ]; then
-        install_to_project "$skill_path" "$project_path"
-    else
-        # Global Install (Original Logic)
-        local filename=$(basename "$skill_path")
-        local rel_path="${skill_path#$SKILLS_DIR/}"
-        
-        log_success "已安装 ${CYAN}$filename${NC} ($rel_path)"
-        
-        local count=0
-        local updated_ides=() # Use array to store list
-        
-        # ... (Existing loop for global IDEs) ...
-        local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-        local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
-        
-        for i in "${!ides[@]}"; do
-            local ide_name="${ides[$i]}"
-            local dir="${dirs[$i]}"
-            
-            if [ -d "$dir" ]; then
-                # Force link creation (ln -sf for file, ln -sfn for dir)
-                ln -sfn "$skill_path" "$dir/$filename"
-                ((count++))
-                updated_ides+=("$ide_name")
-            fi
-        done
-        
-        if [ $count -gt 0 ]; then
-             # Format the array output properly e.g. [Cursor, Claude]
-             local ide_list_str=$(IFS=, ; echo "${updated_ides[*]}")
-             ide_list_str=$(echo "$ide_list_str" | sed 's/,/, /g')
-             echo -e "  ↳ 同步至 $count 个 IDE: [${GREEN}$ide_list_str${NC}]"
-        else
-            log_warn "未检测到任何已初始化的 IDE 技能目录。"
-            echo "提示: 请先运行 'ash init' 或手动创建目录。"
-        fi
-    fi
+    execute_skill_installation "$skill_path" "$mode" "$project_path"
 }
 
 # ------------------------------------------------------------------------------
