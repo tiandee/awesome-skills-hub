@@ -1,6 +1,6 @@
 # Awesome-Skills-Hub (ASH) 🚀
 
-> 一个轻量级的 AI IDE 技能（Skills/Rules）管理工具，旨在跨平台同步和分发 AI 提示词、规则与架构指令。
+> **一处管理，全平台同步** — 技能装一次，Cursor、Claude、Windsurf 等主流 AI IDE 即刻可用。
 
 [![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
 [![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)

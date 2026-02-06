@@ -1,6 +1,6 @@
 # Awesome-Skills-Hub (ASH) 🚀
 
-> **"Write Once, Link Everywhere"** - The "Homebrew" for AI IDE Skills.
+> **One skill library, every AI IDE** — install once, sync to Cursor, Claude, Windsurf, and more.
 
 [![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
 [![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
