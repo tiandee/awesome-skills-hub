@@ -1,11 +1,11 @@
 {
     "name": "askill",
-    "version": "1.1.27",
+    "version": "1.1.30",
     "description": "The 'Homebrew' for AI IDE Skills - Write Once, Link Everywhere.",
     "main": "index.js",
     "bin": {
         "ash": "bin/ash-wrapper.js",
-        "askill": "./bin/ash"
+        "askill": "bin/ash-wrapper.js"
     },
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
