@@ -1,385 +1,522 @@
-# ash.ps1 - Awesome Skills Hub CLI for Windows
+﻿# ash.ps1 - Awesome Skills Hub CLI for Windows
 # A PowerShell implementation for managing AI IDE skills.
+# Version: 1.1.27
 
+# --- Encoding Setup ---
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001 | Out-Null
+
+# --- Path Configuration ---
 $ASH_HOME = Join-Path $env:USERPROFILE ".ash"
 $SKILLS_DIR = Join-Path $ASH_HOME "skills"
-
-# Check if global skills exist. If not, initialize them from the package (First Run Logic)
-# Use $PSScriptRoot which provides the directory of the currently executing script
 $PROJECT_ROOT = Split-Path -Parent $PSScriptRoot
+$VERSION = "1.1.27"
 
+# First Run Logic: initialize global skills from package
 if (-not (Test-Path $SKILLS_DIR)) {
     $LOCAL_SKILLS = Join-Path $PROJECT_ROOT "skills"
-    
-    # Debug: Check where we are looking
-    # Write-Host "Debug: Looking for skills in $LOCAL_SKILLS"
-    
     if (Test-Path $LOCAL_SKILLS) {
-        Write-Host "[$BLUE信息$NC] 首次运行，正在初始化全局环境 (~/.ash)..."
+        Write-Host "[INFO] First run, initializing ~/.ash ..." -ForegroundColor Blue
         New-Item -Path $ASH_HOME -ItemType Directory -Force | Out-Null
         Copy-Item -Path $LOCAL_SKILLS -Destination $SKILLS_DIR -Recurse -Force
-        Write-Host "[$GREEN成功$NC] 初始化完成！"
+        Write-Host "[OK] Initialized!" -ForegroundColor Green
     } else {
-        # Silent failure is bad for debugging. Let's warn if we expected to find them but didn't.
-        # This usually means the execution context is weird or npm install layout is unexpected.
-        # Write-LogWarn "未能在安装包内找到 skills 目录: $LOCAL_SKILLS"
+        Write-Host "[WARN] Skills directory not found: $LOCAL_SKILLS" -ForegroundColor Yellow
         $SKILLS_DIR = $LOCAL_SKILLS
     }
 }
-$BIN_DIR = Join-Path $PROJECT_ROOT "bin"
 
-# Define Paths for Windows
-$AGENT_SKILLS_DIR = Join-Path $env:USERPROFILE ".agent\skills"
+# --- IDE Target Paths ---
+$AGENT_SKILLS_DIR  = Join-Path $env:USERPROFILE ".agent\skills"
 $CURSOR_SKILLS_DIR = Join-Path $env:USERPROFILE ".cursor\skills"
-$TRAE_SKILLS_DIR = Join-Path $env:USERPROFILE ".trae\skills"
+$TRAE_SKILLS_DIR   = Join-Path $env:USERPROFILE ".trae\skills"
 $TRAE_CN_SKILLS_DIR = Join-Path $env:USERPROFILE ".trae-cn\skills"
-$WINDSURF_SKILLS_DIR = Join-Path $env:USERPROFILE ".codeium\windsurf\skills"
+$WINDSURF_SKILLS_DIR = Join-Path $env:USERPROFILE ".windsurf\skills"
 $COPILOT_SKILLS_DIR = Join-Path $env:USERPROFILE ".copilot\skills"
 $CLAUDE_SKILLS_DIR = Join-Path $env:USERPROFILE ".claude\skills"
 
-# ANSI Colors for PowerShell (Ensure compatibility with Windows Terminal)
-$RED = "`e[31m"
-$GREEN = "`e[32m"
-$YELLOW = "`e[33m"
-$BLUE = "`e[34m"
-$MAGENTA = "`e[35m"
-$CYAN = "`e[36m"
-$DIM = "`e[2m"
-$NC = "`e[0m"
+# All IDE targets as array of hashtables
+function Get-IdeTargets {
+    return @(
+        @{ Name = "Antigravity"; Dir = $AGENT_SKILLS_DIR },
+        @{ Name = "Cursor";      Dir = $CURSOR_SKILLS_DIR },
+        @{ Name = "TRAE";        Dir = $TRAE_SKILLS_DIR },
+        @{ Name = "TRAE CN";     Dir = $TRAE_CN_SKILLS_DIR },
+        @{ Name = "Windsurf";    Dir = $WINDSURF_SKILLS_DIR },
+        @{ Name = "Copilot";     Dir = $COPILOT_SKILLS_DIR },
+        @{ Name = "Claude";      Dir = $CLAUDE_SKILLS_DIR }
+    )
+}
 
-function Write-LogInfo($msg) { Write-Host "[$BLUE信息$NC] $msg" }
-function Write-LogSuccess($msg) { Write-Host "[$GREEN成功$NC] $msg" }
-function Write-LogError($msg) { Write-Host "[$RED错误$NC] $msg" }
-function Write-LogWarn($msg) { Write-Host "[$YELLOW警告$NC] $msg" }
+# --- ANSI Colors ---
+$ESC = [char]27
+$GREEN  = "$ESC[32m"
+$BLUE   = "$ESC[34m"
+$YELLOW = "$ESC[33m"
+$RED    = "$ESC[31m"
+$CYAN   = "$ESC[36m"
+$DIM    = "$ESC[2m"
+$NC     = "$ESC[0m"
 
+# --- Log Functions ---
+function Write-LogInfo($msg)    { Write-Host "${BLUE}[INFO]${NC} $msg" }
+function Write-LogSuccess($msg) { Write-Host "${GREEN}[OK]${NC} $msg" }
+function Write-LogError($msg)   { Write-Host "${RED}[ERR]${NC} $msg" }
+function Write-LogWarn($msg)    { Write-Host "${YELLOW}[WARN]${NC} $msg" }
+
+# --- Helpers ---
 function Get-SkillFiles {
-    Get-ChildItem -Path $SKILLS_DIR -Filter "*.md" -Recurse | Where-Object { $_.Name -ne "README.md" }
+    if (-not (Test-Path $SKILLS_DIR)) { return @() }
+    Get-ChildItem -Path $SKILLS_DIR -Filter "*.md" -Recurse |
+        Where-Object { $_.Name -ne "README.md" }
 }
 
-function Show-Help {
-    Write-Host @"
-$CYAN
-   ___   _____ _   _ 
-  / _ \ / ____| | | |
- | |_| | (___ | |_| |
- |  _  |\___ \|  _  |
- | | | |____) | | | |
- |_| |_|_____/|_| |_|
-$NC
-Awesome Skills Hub (ASH) - 跨平台 AI 技能管理工具
+# Returns de-duplicated skill paths:
+#   - Folder skill (dir with SKILL.md) -> returns the directory path
+#   - Standalone .md file -> returns the file path
+#   - Skips .md files nested inside a folder skill
+function Get-AllSkillPaths {
+    if (-not (Test-Path $SKILLS_DIR)) { return @() }
+    $results = [System.Collections.Generic.List[string]]::new()
+    $folderSkillDirs = [System.Collections.Generic.HashSet[string]]::new()
 
-用法: ash <命令> [参数]
+    # Pass 1: Identify all folder skills (directories containing SKILL.md)
+    Get-ChildItem -Path $SKILLS_DIR -Filter "SKILL.md" -Recurse -File | ForEach-Object {
+        $dir = $_.DirectoryName
+        $folderSkillDirs.Add($dir) | Out-Null
+        $results.Add($dir)
+    }
 
-核心命令:
-  list              列出所有可用技能
-  info <技能名>      查看技能详细描述与触发词
-  search <关键词>    搜索技能
-  install <技能名>   安装技能到所有 IDE (支持 --all)
-  uninstall <名称>   卸载技能 (支持 --all)
-  status            查看当前安装映射关系
-  sync              从远程 Git 仓库同步最新技能
-  init              初始化 IDE 技能目录映射
-  help              显示此帮助信息
-
-示例:
-  ash list                    # View all skills
-  ash add pdf                 # Install skill (Global)
-  ash add --all               # Install all skills
-  ash info docx
-"@
-}
-
-function Invoke-List {
-    Write-LogInfo "可用技能列表:"
-    echo ""
-    $categories = Get-ChildItem -Path $SKILLS_DIR -Directory
-    foreach ($cat in $categories) {
-        $files = Get-ChildItem -Path $cat.FullName -Filter "*.md" | Where-Object { $_.Name -ne "README.md" }
-        if ($files.Count -gt 0) {
-            Write-Host "[$($cat.Name)]" -ForegroundColor Yellow
-            foreach ($f in $files) {
-                Write-Host "  • $($f.Name)"
+    # Pass 2: Collect standalone .md files not nested inside any folder skill
+    Get-ChildItem -Path $SKILLS_DIR -Filter "*.md" -Recurse -File |
+        Where-Object { $_.Name -ne "README.md" -and $_.Name -ne "SKILL.md" } |
+        ForEach-Object {
+            $filePath = $_.FullName
+            $isNested = $false
+            foreach ($fsd in $folderSkillDirs) {
+                if ($filePath.StartsWith($fsd + [IO.Path]::DirectorySeparatorChar)) {
+                    $isNested = $true
+                    break
+                }
             }
-            echo ""
+            if (-not $isNested) {
+                $results.Add($filePath)
+            }
         }
-    }
-    $all = Get-SkillFiles
-    Write-LogInfo "共 $($all.Count) 个技能可用"
-    Write-Host "提示: 使用 'ash info <技能名>' 查看详细描述" -ForegroundColor Cyan
+
+    return $results | Sort-Object
 }
 
+# ==============================================================================
+# Command: help
+# ==============================================================================
+function Show-Help {
+    Write-Host ""
+    Write-Host "${CYAN}   ___   _____ _   _ ${NC}"
+    Write-Host "${CYAN}  / _ \ / ____| | | |${NC}"
+    Write-Host "${CYAN} | |_| | (___ | |_| |${NC}"
+    Write-Host "${CYAN} |  _  |\___ \|  _  |${NC}"
+    Write-Host "${CYAN} | | | |____) | | | |${NC}"
+    Write-Host "${CYAN} |_| |_|_____/|_| |_|${NC}"
+    Write-Host ""
+    Write-Host "Awesome Skills Hub (ASH) v${VERSION}"
+    Write-Host ""
+    Write-Host "${YELLOW}Usage:${NC} ash <command> [args]"
+    Write-Host ""
+    Write-Host "${YELLOW}Commands:${NC}"
+    Write-Host "  init              Initialize environment and detect IDEs"
+    Write-Host "  list              List all available skills"
+    Write-Host "  info <name>       Show skill details and preview"
+    Write-Host "  search <keyword>  Search skills by keyword"
+    Write-Host "  status            Show installed skills status"
+    Write-Host "  install <name>    Install skill to all IDEs (supports --all)"
+    Write-Host "  uninstall <name>  Uninstall skill (supports --all)"
+    Write-Host "  sync              Sync/update skills from repository"
+    Write-Host "  help              Show this help"
+    Write-Host ""
+    Write-Host "${YELLOW}Examples:${NC}"
+    Write-Host "  ash list"
+    Write-Host "  ash install pdf"
+    Write-Host "  ash install --all"
+    Write-Host "  ash info docx"
+    Write-Host "  ash search react"
+    Write-Host ""
+}
+
+# ==============================================================================
+# Command: list
+# ==============================================================================
+function Invoke-List {
+    Write-LogInfo "Available skills:"
+    Write-Host ""
+    $categories = Get-ChildItem -Path $SKILLS_DIR -Directory -ErrorAction SilentlyContinue
+    foreach ($cat in $categories) {
+        $files = Get-ChildItem -Path $cat.FullName -Filter "*.md" |
+            Where-Object { $_.Name -ne "README.md" }
+        if ($files.Count -gt 0) {
+            Write-Host "${YELLOW}[$($cat.Name)]${NC}"
+            foreach ($f in $files) {
+                Write-Host "  ${GREEN}*${NC} $($f.Name)"
+            }
+            Write-Host ""
+        }
+    }
+    $all = @(Get-SkillFiles)
+    Write-LogInfo "Total: $($all.Count) skills available"
+    Write-Host "${DIM}Tip: use 'ash info <name>' to see details${NC}"
+}
+
+# ==============================================================================
+# Helper: Resolve skill path by name
+# ==============================================================================
 function Resolve-SkillPath($name) {
+    if ([string]::IsNullOrEmpty($name)) { return $null }
     if ($name.EndsWith(".md")) { $name = $name.Substring(0, $name.Length - 3) }
-    $matches = Get-SkillFiles | Where-Object { $_.BaseName -eq $name -or $_.Name -eq $name }
+
+    # 1. Check for folder skill (directory containing SKILL.md)
+    $folderMatches = @(Get-ChildItem -Path $SKILLS_DIR -Directory -Recurse |
+        Where-Object { $_.Name -eq $name -and (Test-Path (Join-Path $_.FullName "SKILL.md")) })
     
-    if ($matches.Count -eq 0) { return $null }
-    if ($matches.Count -gt 1) {
-        Write-LogWarn "找到多个重名技能，请指定分类路径:"
-        foreach ($m in $matches) {
-            $rel = $m.FullName.Replace("$SKILLS_DIR\", "")
-            Write-Host "  • ash add $rel"
-        }
-        return "MULTIPLE"
+    if ($folderMatches.Count -eq 1) {
+        return Join-Path $folderMatches[0].FullName "SKILL.md"
     }
-    return $matches[0].FullName
+
+    # 2. Check for file skill (.md file)
+    $fileMatches = @(Get-SkillFiles | Where-Object {
+        $_.BaseName -eq $name -or $_.Name -eq $name
+    })
+
+    $allMatches = @()
+    if ($folderMatches.Count -gt 0) { $allMatches += $folderMatches | ForEach-Object { Join-Path $_.FullName "SKILL.md" } }
+    if ($fileMatches.Count -gt 0) { $allMatches += $fileMatches | ForEach-Object { $_.FullName } }
+
+    if ($allMatches.Count -eq 0) { return $null }
+    if ($allMatches.Count -eq 1) { return $allMatches[0] }
+
+    # Multiple matches
+    Write-LogWarn "Multiple skills found with name '$name'. Please specify full path:"
+    foreach ($m in $allMatches) {
+        $rel = $m.Substring($SKILLS_DIR.Length + 1)
+        Write-Host "  * ash install $rel"
+    }
+    return "MULTIPLE"
 }
 
+# ==============================================================================
+# Command: info
+# ==============================================================================
 function Invoke-Info($name) {
-    if (-not $name) { Write-LogError "请指定技能名称"; return }
+    if (-not $name) { Write-LogError "Please specify skill name (e.g.: ash info pdf)"; return }
     $path = Resolve-SkillPath $name
-    if ($null -eq $path) { Write-LogError "技能未找到: $name"; return }
+    if ($null -eq $path) { Write-LogError "Skill not found: $name"; return }
     if ($path -eq "MULTIPLE") { return }
 
-    $content = Get-Content $path -Raw
+    $content = Get-Content $path -Raw -Encoding UTF8
     $filename = Split-Path $path -Leaf
-    Write-Host "[$CYAN$filename$NC]"
-    echo "------------------------------------------"
-    
-    # Simple YAML frontmatter parser for PS
-    if ($content -match "(?s)^---\r?\n(.*?)\r?\n---") {
+    Write-Host "${CYAN}[$filename]${NC}"
+    Write-Host "------------------------------------------"
+
+    # Simple YAML frontmatter parser
+    if ($content -match '(?s)^---\r?\n(.*?)\r?\n---') {
         $yaml = $Matches[1]
-        Write-Host "技能描述: " -NoNewLine; $yaml -match "description: (.*)" | Out-Null; Write-Host $Matches[1] -ForegroundColor Green
-        Write-Host "触发重点: " -NoNewLine; $yaml -match "triggers: (.*)" | Out-Null; Write-Host $Matches[1] -ForegroundColor Yellow
+        if ($yaml -match 'description:\s*(.+)') {
+            Write-Host "Description: " -NoNewLine
+            Write-Host $Matches[1] -ForegroundColor Green
+        }
+        if ($yaml -match 'triggers:\s*(.+)') {
+            Write-Host "Triggers: " -NoNewLine
+            Write-Host $Matches[1] -ForegroundColor Yellow
+        }
     }
-    echo ""
-    Write-Host "内容预览:" -ForegroundColor Cyan
-    $lines = Get-Content $path | Select-Object -First 15
+    Write-Host ""
+    Write-Host "Content preview:" -ForegroundColor Cyan
+    $lines = Get-Content $path -Encoding UTF8 | Select-Object -First 15
     foreach ($l in $lines) { Write-Host "  $l" }
-    if ((Get-Content $path).Count -gt 15) { Write-Host "  ..." -ForegroundColor Gray }
+    $totalLines = (Get-Content $path -Encoding UTF8).Count
+    if ($totalLines -gt 15) { Write-Host "  ..." -ForegroundColor Gray }
 }
 
-function Install-SkillFile($source) {
-    $filename = Split-Path $source -Leaf
+# ==============================================================================
+# Helper: Install a skill (file or folder) to all detected IDEs
+# ==============================================================================
+function Install-SkillToIdes($source) {
     $installed = 0
-    $targets = @(
-        @{ Name = "Antigravity"; Dir = $AGENT_SKILLS_DIR },
-        @{ Name = "Cursor"; Dir = $CURSOR_SKILLS_DIR },
-        @{ Name = "TRAE"; Dir = $TRAE_SKILLS_DIR },
-        @{ Name = "TRAE CN"; Dir = $TRAE_CN_SKILLS_DIR },
-        @{ Name = "Windsurf"; Dir = $WINDSURF_SKILLS_DIR },
-        @{ Name = "Copilot"; Dir = $COPILOT_SKILLS_DIR },
-        @{ Name = "Claude"; Dir = $CLAUDE_SKILLS_DIR }
-    )
+    $targets = Get-IdeTargets
+    $isFolder = $false
+    $installName = Split-Path $source -Leaf
+
+    # Detect folder skill: if source is SKILL.md, install the parent directory
+    if ($installName -eq "SKILL.md") {
+        $isFolder = $true
+        $source = Split-Path $source -Parent
+        $installName = Split-Path $source -Leaf
+    }
+    # Also handle when source is a directory directly (from Get-AllSkillPaths)
+    if (Test-Path $source -PathType Container) {
+        $isFolder = $true
+    }
 
     foreach ($t in $targets) {
         if (Test-Path $t.Dir) {
-            $dest = Join-Path $t.Dir $filename
-            # Use cmd /c mklink if New-Item fails for perms
+            $dest = Join-Path $t.Dir $installName
             try {
-                if (Test-Path $dest) { Remove-Item $dest -Force }
-                New-Item -ItemType SymbolicLink -Path $dest -Target $source -Force | Out-Null
+                if (Test-Path $dest) { Remove-Item $dest -Force -Recurse -ErrorAction SilentlyContinue }
+                if ($isFolder) {
+                    # Try symlink for directory
+                    New-Item -ItemType SymbolicLink -Path $dest -Target $source -Force -ErrorAction Stop | Out-Null
+                } else {
+                    New-Item -ItemType SymbolicLink -Path $dest -Target $source -Force -ErrorAction Stop | Out-Null
+                }
                 $installed++
             } catch {
-                # Fallback to hard link or copy if symlink perms missing? 
-                # For "perfect support", we should advise admin or Developer Mode.
+                # Symlink requires admin/dev mode on Windows; fall back to copy
+                try {
+                    if ($isFolder) {
+                        Copy-Item -Path $source -Destination $dest -Recurse -Force -ErrorAction Stop
+                    } else {
+                        Copy-Item -Path $source -Destination $dest -Force -ErrorAction Stop
+                    }
+                    $installed++
+                } catch {
+                    # silently skip
+                }
             }
         }
     }
     return $installed
 }
 
+# ==============================================================================
+# Command: install
+# ==============================================================================
 function Invoke-Install($name) {
-    if (-not $name) { Write-LogError "请指定参数 (例如: pdf 或 --all)"; return }
+    if (-not $name) { Write-LogError "Please specify skill name (e.g.: pdf or --all)"; return }
 
     if ($name -eq "--all") {
-        $files = Get-SkillFiles | Sort-Object Name
-        Write-LogInfo "正在批量安装 $($files.Count) 个技能到所有检测到的 IDE..."
-        echo ""
+        $skillPaths = @(Get-AllSkillPaths)
+        Write-LogInfo "Batch installing $($skillPaths.Count) skills to all detected IDEs..."
+        Write-Host ""
         $total = 0
-        $updated_ides = New-Object System.Collections.Generic.List[string]
+        $updated_ides = [System.Collections.Generic.List[string]]::new()
 
-        foreach ($f in $files) {
-            $rel = $f.FullName.Replace("$SKILLS_DIR\", "")
-            Write-Host "  $GREEN•$NC $CYAN$($f.Name)$NC ${DIM}($rel)$NC"
-            $count = Install-SkillFile $f.FullName
+        foreach ($sp in $skillPaths) {
+            $rel = $sp.Substring($SKILLS_DIR.Length + 1)
+            $displayName = Split-Path $sp -Leaf
+            Write-Host "  ${GREEN}*${NC} ${CYAN}${displayName}${NC} ${DIM}($rel)${NC}"
+            $count = Install-SkillToIdes $sp
             $total += $count
         }
 
         # Recap IDEs
-        $ides = @("Antigravity", "Cursor", "TRAE", "Windsurf", "Copilot", "Claude", "Trae CN")
-        $dirs = @($AGENT_SKILLS_DIR, $CURSOR_SKILLS_DIR, $TRAE_SKILLS_DIR, $WINDSURF_SKILLS_DIR, $COPILOT_SKILLS_DIR, $CLAUDE_SKILLS_DIR, $TRAE_CN_SKILLS_DIR)
-        for ($i=0; $i -lt $ides.Length; $i++) {
-            if (Test-Path $dirs[$i]) { $updated_ides.Add($ides[$i]) }
+        $targets = Get-IdeTargets
+        foreach ($t in $targets) {
+            if (Test-Path $t.Dir) { $updated_ides.Add($t.Name) }
         }
 
-        echo ""
-        Write-LogSuccess "批量安装完成！"
-        Write-Host "  ${CYAN}已同步 IDE:${NC} $([string]::Join("、", $updated_ides))"
-        Write-Host "  ${CYAN}总链接数:${NC} $total"
+        Write-Host ""
+        Write-LogSuccess "Batch install complete!"
+        $ideList = [string]::Join(', ', $updated_ides)
+        Write-Host "  ${CYAN}Synced IDEs:${NC} $ideList"
+        Write-Host "  ${CYAN}Total links:${NC} $total"
         return
     }
 
     $path = Resolve-SkillPath $name
-    if ($null -eq $path) { Write-LogError "技能未找到: $name"; return }
+    if ($null -eq $path) { Write-LogError "Skill not found: $name"; return }
     if ($path -eq "MULTIPLE") { return }
 
-    $count = Install-SkillFile $path
+    $count = Install-SkillToIdes $path
     if ($count -gt 0) {
-        Write-LogSuccess "已安装至 $count 个 IDE 环境。"
+        Write-LogSuccess "Installed to $count IDE environment(s)."
     } else {
-        Write-LogWarn "未找到可安装的目标目录，请先运行 'ash init'"
+        Write-LogWarn "No target directories found. Please run 'ash init' first."
     }
 }
 
+# ==============================================================================
+# Command: uninstall
+# ==============================================================================
 function Invoke-Uninstall($name) {
-    if (-not $name) { Write-LogError "请指定参数 (例如: pdf 或 --all)"; return }
+    if (-not $name) { Write-LogError "Please specify skill name (e.g.: pdf or --all)"; return }
 
-    $targets = @(
-        @{ Name = "Antigravity"; Dir = $AGENT_SKILLS_DIR },
-        @{ Name = "Cursor"; Dir = $CURSOR_SKILLS_DIR },
-        @{ Name = "TRAE"; Dir = $TRAE_SKILLS_DIR },
-        @{ Name = "TRAE CN"; Dir = $TRAE_CN_SKILLS_DIR },
-        @{ Name = "Windsurf"; Dir = $WINDSURF_SKILLS_DIR },
-        @{ Name = "Copilot"; Dir = $COPILOT_SKILLS_DIR },
-        @{ Name = "Claude"; Dir = $CLAUDE_SKILLS_DIR }
-    )
+    $targets = Get-IdeTargets
 
     if ($name -eq "--all") {
-        Write-LogInfo "正在从所有 IDE 卸载所有技能..."
+        Write-LogInfo "Uninstalling all skills from all IDEs..."
         $total = 0
         foreach ($t in $targets) {
             if (Test-Path $t.Dir) {
                 $count = 0
-                $removed = New-Object System.Collections.Generic.List[string]
-                $links = Get-ChildItem -Path $t.Dir -Filter "*.md"
-                foreach ($l in $links) {
-                    # Check if it's a symbolic link in PS
-                    if ($l.Attributes -match "ReparsePoint") {
-                        Remove-Item $l.FullName -Force
-                        $removed.Add($l.Name)
-                        $count++
-                        $total++
-                    }
+                $removed = [System.Collections.Generic.List[string]]::new()
+                $items = Get-ChildItem -Path $t.Dir -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -ne "README.md" }
+                foreach ($item in $items) {
+                    Remove-Item $item.FullName -Force -Recurse -ErrorAction SilentlyContinue
+                    $removed.Add($item.Name)
+                    $count++
+                    $total++
                 }
                 if ($count -gt 0) {
-                    Write-Host "  $CYAN$($t.Name):$NC 已移除 $GREEN$count$NC 个技能 [${DIM}$([string]::Join("、", $removed))$NC]"
+                    $removedList = [string]::Join(', ', $removed)
+                    Write-Host "  ${CYAN}$($t.Name):${NC} removed ${GREEN}$count${NC} skills [$removedList]"
                 }
             }
         }
-        echo ""
-        if ($total -gt 0) { Write-LogSuccess "全量卸载完成，共移除了 $total 个链接。" }
-        else { Write-LogWarn "未发现任何已安装的技能链接。" }
+        Write-Host ""
+        if ($total -gt 0) { Write-LogSuccess "Uninstall complete. Removed $total items total." }
+        else { Write-LogWarn "No installed skills found." }
         return
     }
 
-    # Single uninstall
-    $filename = if ($name.EndsWith(".md")) { $name } else { "$name.md" }
+    # Single uninstall: try both with and without .md
+    $candidates = @($name)
+    if (-not $name.EndsWith(".md")) { $candidates += "$name.md" }
+    if ($name.EndsWith(".md")) { $candidates += $name.Substring(0, $name.Length - 3) }
+    
     $total = 0
     foreach ($t in $targets) {
-        $path = Join-Path $t.Dir $filename
-        if (Test-Path $path) {
-            Remove-Item $path -Force
-            $total++
+        foreach ($candidate in $candidates) {
+            $p = Join-Path $t.Dir $candidate
+            if (Test-Path $p) {
+                Remove-Item $p -Force -Recurse -ErrorAction SilentlyContinue
+                Write-LogSuccess "Removed from $($t.Name): $candidate"
+                $total++
+                break  # one match per IDE is enough
+            }
         }
     }
-    if ($total -gt 0) { Write-LogSuccess "已从 $total 个环境移除 $filename。" }
-    else { Write-LogError "未在任何环境中找到技能: $filename" }
+    if ($total -eq 0) { Write-LogWarn "Skill not found in any IDE: $name" }
 }
 
+# ==============================================================================
+# Command: status
+# ==============================================================================
 function Invoke-Status {
-    Write-LogInfo "当前技能安装状态:"
-    echo ""
-    $targets = @(
-        @{ Name = "Antigravity"; Dir = $AGENT_SKILLS_DIR },
-        @{ Name = "Cursor"; Dir = $CURSOR_SKILLS_DIR },
-        @{ Name = "TRAE"; Dir = $TRAE_SKILLS_DIR },
-        @{ Name = "TRAE CN"; Dir = $TRAE_CN_SKILLS_DIR },
-        @{ Name = "Windsurf"; Dir = $WINDSURF_SKILLS_DIR },
-        @{ Name = "Copilot"; Dir = $COPILOT_SKILLS_DIR },
-        @{ Name = "Claude"; Dir = $CLAUDE_SKILLS_DIR }
-    )
+    Write-LogInfo "Installed skills status:"
+    Write-Host ""
+    $targets = Get-IdeTargets
     foreach ($t in $targets) {
         if (Test-Path $t.Dir) {
-            Write-Host "  $($t.Name) ($($t.Dir)):" -ForegroundColor Cyan
-            $links = Get-ChildItem -Path $t.Dir -Filter "*.md" | Where-Object { $_.Attributes -match "ReparsePoint" }
-            if ($links.Count -eq 0) {
-                Write-Host "    • (无)" -ForegroundColor Gray
+            Write-Host "  ${CYAN}$($t.Name) ($($t.Dir)):${NC}"
+            $items = @(Get-ChildItem -Path $t.Dir -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -ne "README.md" })
+            if ($items.Count -eq 0) {
+                Write-Host "    * (none)" -ForegroundColor Gray
             } else {
-                foreach ($l in $links) {
-                    # Get target of symlink in PS
-                    $target = (Get-Item $l.FullName).Target
-                    Write-Host "    • $($l.Name) -> $target"
+                foreach ($item in $items) {
+                    $isDir = $item.PSIsContainer
+                    $isSymlink = $item.Attributes -match "ReparsePoint"
+                    $label = $item.Name
+                    if ($isDir) { $label += "/" }
+                    if ($isSymlink) {
+                        try {
+                            $tgt = (Get-Item $item.FullName).Target
+                            Write-Host "    ${GREEN}*${NC} $label -> $tgt"
+                        } catch {
+                            Write-Host "    ${GREEN}*${NC} $label (symlink)"
+                        }
+                    } else {
+                        $kind = if ($isDir) { "copy/dir" } else { "copy" }
+                        Write-Host "    ${GREEN}*${NC} $label ($kind)"
+                    }
                 }
             }
         }
     }
 }
 
+# ==============================================================================
+# Command: sync
+# ==============================================================================
 function Invoke-Sync {
-    Write-LogInfo "正在检查更新方式..."
-    
-    # 1. 检查项目目录是否为 Git 仓库
+    Write-LogInfo "Syncing skills..."
+
     $gitDir = Join-Path $PROJECT_ROOT ".git"
     if (Test-Path $gitDir) {
-        Write-LogInfo "检测到 Git 仓库，正在从远程拉取更新..."
+        Write-LogInfo "Git repo detected. Pulling latest..."
         Push-Location $PROJECT_ROOT
         try {
-            git pull origin main
+            git pull origin main 2>&1 | ForEach-Object { Write-Host $_ }
             if ($LASTEXITCODE -eq 0) {
-                 Write-LogSuccess "Git 同步完成。"
+                Write-LogSuccess "Git sync complete."
             }
         } finally {
             Pop-Location
         }
-        
-        # 2. 同步到全局目录 (可选，如果用户希望手动覆盖，通常 git pull 更新了源文件，install 会用新的)
-        # Write-LogInfo "正在同步到全局主目录 ($SKILLS_DIR)..."
-        # $localSkills = Join-Path $PROJECT_ROOT "skills"
-        # Copy-Item -Path "$localSkills\*" -Destination $SKILLS_DIR -Recurse -Force
+
+        # Sync to global dir
+        Write-LogInfo "Syncing to global directory ($SKILLS_DIR)..."
+        $localSkills = Join-Path $PROJECT_ROOT "skills"
+        if (Test-Path $localSkills) {
+            Copy-Item -Path (Join-Path $localSkills "*") -Destination $SKILLS_DIR -Recurse -Force
+            Write-LogSuccess "Sync complete! Run 'ash list' to see latest skills."
+        }
     } else {
-        Write-LogWarn "当前是通过 NPM 或直接下载安装的，无法通过 Git 同步。"
-        Write-Host "💡 请使用 NPM 更新: npm update -g askill" -ForegroundColor Cyan
+        Write-LogWarn "Not in a Git repository. Skipping sync."
+        Write-Host "Tip: Clone the repo and run install.ps1, or use 'npm update -g askill'" -ForegroundColor Cyan
     }
 }
 
+# ==============================================================================
+# Command: init
+# ==============================================================================
 function Invoke-Init {
-    Write-LogInfo "正在初始化 IDE 技能目录..."
-    $dirs = @($AGENT_SKILLS_DIR, $CURSOR_SKILLS_DIR, $TRAE_SKILLS_DIR, $TRAE_CN_SKILLS_DIR, $WINDSURF_SKILLS_DIR, $COPILOT_SKILLS_DIR, $CLAUDE_SKILLS_DIR)
-    foreach ($d in $dirs) {
-        if (-not (Test-Path $d)) {
-            New-Item -Path $d -ItemType Directory -Force | Out-Null
-            Write-LogSuccess "已创建目录: $d"
+    Write-LogInfo "Initializing IDE skill directories..."
+    $targets = Get-IdeTargets
+    foreach ($t in $targets) {
+        if (-not (Test-Path $t.Dir)) {
+            New-Item -Path $t.Dir -ItemType Directory -Force | Out-Null
+            Write-LogSuccess "Created: $($t.Dir)"
         } else {
-            Write-LogInfo "目录已存在: $d"
+            Write-LogInfo "Exists:  $($t.Dir)"
         }
     }
+    Write-LogSuccess "Init complete."
 }
 
+# ==============================================================================
+# Command: search
+# ==============================================================================
 function Invoke-Search($query) {
-    if (-not $query) { Write-LogError "请提供搜索关键词"; return }
-    Write-LogInfo "正在搜索关键词 '$query'..."
-    echo ""
-    $files = Get-SkillFiles
+    if (-not $query) { Write-LogError "Please provide a search keyword"; return }
+    Write-LogInfo "Searching for '$query'..."
+    Write-Host ""
+    $files = @(Get-SkillFiles)
     $found = 0
     foreach ($f in $files) {
-        $content = Get-Content $f.FullName -Raw
+        $content = Get-Content $f.FullName -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+        $rel = $f.FullName.Substring($SKILLS_DIR.Length + 1)
         if ($f.Name -match $query -or $content -match $query) {
-            Write-Host "  • $($f.Name)" -ForegroundColor Green -NoNewLine
-            Write-Host " ($($f.FullName.Replace("$SKILLS_DIR\", "")))" -ForegroundColor Gray
+            Write-Host "  ${GREEN}*${NC} ${CYAN}$($f.Name)${NC} ${DIM}($rel)${NC}"
             $found++
         }
     }
-    if ($found -eq 0) { Write-LogWarn "未找到匹配项。" }
-    else { Write-LogInfo "找到 $found 个相关技能。" }
+    if ($found -eq 0) { Write-LogWarn "No matches found." }
+    else { Write-LogInfo "Found $found matching skill(s)." }
 }
 
+# ==============================================================================
+# Did You Mean? (typo suggestions)
+# ==============================================================================
 function Invoke-DidYouMean($cmd) {
-    $commands = @("list", "info", "install", "uninstall", "search", "status", "sync", "init", "help")
-    # Simple distance? For now just check common typos
     $typos = @{
         "ls" = "list"; "l" = "list"; "serch" = "search"; "find" = "search";
-        "intall" = "install"; "unintall" = "uninstall"; "rm" = "uninstall";
+        "intall" = "install"; "instal" = "install"; "insall" = "install";
+        "unintall" = "uninstall"; "rm" = "uninstall";
         "stat" = "status"; "st" = "status"
     }
     if ($typos.ContainsKey($cmd)) {
         $suggest = $typos[$cmd]
-        Write-LogWarn "未知命令 '$cmd'。您是不是想输入 '$suggest'?"
+        Write-LogWarn "Unknown command '$cmd'. Did you mean '${CYAN}ash $suggest${NC}'?"
         return
     }
-    Write-LogError "未知命令 '$cmd'。使用 'ash help' 查看帮助。"
+    Write-LogError "Unknown command '$cmd'. Run 'ash help' for usage."
 }
 
+# ==============================================================================
 # Entry Point
+# ==============================================================================
 $cmd = $args[0]
 $param = $args[1]
 
@@ -394,6 +531,10 @@ switch ($cmd) {
     "sync"      { Invoke-Sync }
     "init"      { Invoke-Init }
     "help"      { Show-Help }
+    "-h"        { Show-Help }
+    "--help"    { Show-Help }
+    "-v"        { Write-Host "${CYAN}ASH (Awesome-Skills-Hub) v${VERSION}${NC}" }
+    "--version" { Write-Host "${CYAN}ASH (Awesome-Skills-Hub) v${VERSION}${NC}" }
     ""          { Show-Help }
     default     { Invoke-DidYouMean $cmd }
 }

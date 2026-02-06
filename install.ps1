@@ -1,93 +1,138 @@
-# install.ps1 - ASH (Awesome Skills Hub) Windows Native Installer
+﻿# install.ps1 - ASH (Awesome Skills Hub) Windows Native Installer
 # This script sets up ASH on Windows by adding it to the environment path and setting up an alias.
 
-# 解决中文乱码问题
+# --- Encoding Setup ---
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001 | Out-Null
 
-# 0. 检测安装模式 (本地 vs 远程)
+# 0. Detect install mode (local vs remote)
 $ScriptPath = $PSScriptRoot
 if (-not (Test-Path -Path "$ScriptPath\bin\ash.ps1")) {
-    Write-Host "📡 未检测到本地文件，进入远程安装模式..." -ForegroundColor Cyan
-    
+    Write-Host "[*] No local files detected, entering remote install mode..." -ForegroundColor Cyan
+
     $AshAppDir = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".ash\app"
-    
+
     if (Test-Path -Path $AshAppDir) {
-        Write-Host "🔄 清理旧版本..." -ForegroundColor Gray
+        Write-Host "[*] Cleaning old version..." -ForegroundColor Gray
         Remove-Item -Path $AshAppDir -Recurse -Force
     }
-    
-    Write-Host "⬇️  正在克隆仓库到 $AshAppDir ..." -ForegroundColor Cyan
+
+    Write-Host "[*] Cloning repository to $AshAppDir ..." -ForegroundColor Cyan
     git clone https://github.com/tiandee/awesome-skills-hub.git $AshAppDir
-    
+
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ 克隆失败，请检查 Git 是否安装以及网络连接。" -ForegroundColor Red
+        Write-Host "[ERR] Clone failed. Please check Git and network." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Press Enter to exit..." -ForegroundColor Yellow
+        Read-Host
         exit 1
     }
-    
-    Write-Host "🚀 转交控制权给本地安装脚本..." -ForegroundColor Green
+
+    Write-Host "[*] Handing off to local installer..." -ForegroundColor Green
     & "$AshAppDir\install.ps1"
     exit
 }
 
 # ========================================================
-# 本地安装逻辑 (Local Install Flow)
+# Local Install Flow
 # ========================================================
 
-Write-Host "🚀 开始安装 Awesome Skills Hub (ASH)..." -ForegroundColor Cyan
+Write-Host "[*] Installing Awesome Skills Hub (ASH)..." -ForegroundColor Cyan
 
 $SkillsHubHome = $ScriptPath
 $BinDir = Join-Path $SkillsHubHome "bin"
 $AshScript = Join-Path $BinDir "ash.ps1"
 
 if (-not (Test-Path $AshScript)) {
-    Write-Host "❌ 错误: 未能在 $BinDir 找到 ash.ps1。请在项目根目录下运行此脚本。" -ForegroundColor Red
+    Write-Host "[ERR] Cannot find ash.ps1 in $BinDir. Please run from project root." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Press Enter to exit..." -ForegroundColor Yellow
+    Read-Host
     exit 1
 }
 
-# 1. 尝试将 bin 目录添加到系统 PATH (用户级别)
-Write-Host "📦 正在配置系统环境变量..." -ForegroundColor Yellow
-$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($UserPath -notlike "*$BinDir*") {
-    [Environment]::SetEnvironmentVariable("Path", "$UserPath;$BinDir", "User")
-    Write-Host "✅ 已将 $BinDir 添加到用户 PATH。" -ForegroundColor Green
-} else {
-    Write-Host "ℹ️ $BinDir 已在 PATH 中。" -ForegroundColor Gray
+# 1. Add bin directory to user PATH
+Write-Host "[*] Configuring environment variables..." -ForegroundColor Yellow
+try {
+    $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ($UserPath -notlike "*$BinDir*") {
+        [Environment]::SetEnvironmentVariable("Path", "$UserPath;$BinDir", "User")
+        Write-Host "[OK] Added $BinDir to user PATH." -ForegroundColor Green
+    } else {
+        Write-Host "[OK] $BinDir already in PATH." -ForegroundColor Gray
+    }
+} catch {
+    Write-Host "[WARN] Failed to set PATH: $_" -ForegroundColor Yellow
 }
 
-# 2. 尝试在 PowerShell Profile 中添加别名
-Write-Host "🐚 正在配置 PowerShell 别名..." -ForegroundColor Yellow
-if (-not (Test-Path $PROFILE)) {
-    New-Item -Path $PROFILE -Type File -Force | Out-Null
-    Write-Host "✅ 已创建 PowerShell 配置文件: $PROFILE" -ForegroundColor Gray
-}
+# 2. Add ash alias to PowerShell Profile
+Write-Host "[*] Configuring PowerShell alias..." -ForegroundColor Yellow
+try {
+    if (-not (Test-Path $PROFILE)) {
+        $ProfileDir = Split-Path -Parent $PROFILE
+        if (-not (Test-Path $ProfileDir)) {
+            New-Item -Path $ProfileDir -ItemType Directory -Force | Out-Null
+        }
+        New-Item -Path $PROFILE -Type File -Force | Out-Null
+        Write-Host "[OK] Created PowerShell profile: $PROFILE" -ForegroundColor Gray
+    }
 
-$AliasCode = @"
+    $AliasCode = @"
 
 # Awesome Skills Hub (ASH) Alias
 function ash { powershell -ExecutionPolicy Bypass -File "$AshScript" `$args }
 "@
 
-$ProfileContent = Get-Content $PROFILE -Raw
-if ($ProfileContent -notlike "*function ash {*") {
-    Add-Content -Path $PROFILE -Value $AliasCode
-    Write-Host "✅ 已在 `$PROFILE 中添加 ash 别名。" -ForegroundColor Green
-} else {
-    Write-Host "ℹ️ `$PROFILE 中已存在 ash 配置。" -ForegroundColor Gray
+    $ProfileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+    if (-not ($ProfileContent -match 'function ash')) {
+        Add-Content -Path $PROFILE -Value $AliasCode -Encoding UTF8
+        Write-Host "[OK] Added ash alias to `$PROFILE." -ForegroundColor Green
+    } else {
+        Write-Host "[OK] ash alias already exists in `$PROFILE." -ForegroundColor Gray
+    }
+} catch {
+    Write-Host "[WARN] Failed to configure alias: $_" -ForegroundColor Yellow
 }
 
-# 3. 初始化环境与同步技能
-Write-Host "📂 正在同步/初始化全局技能主目录 (~/.ash)..." -ForegroundColor Yellow
+# 3. Sync skills to global directory
+Write-Host "[*] Syncing skills to ~/.ash ..." -ForegroundColor Yellow
 $AshHome = Join-Path $env:USERPROFILE ".ash"
 $GlobalSkills = Join-Path $AshHome "skills"
-if (-not (Test-Path $GlobalSkills)) { New-Item -Path $GlobalSkills -ItemType Directory -Force | Out-Null }
-Copy-Item -Path "$(Join-Path $CurrentDir "skills")\*" -Destination $GlobalSkills -Recurse -Force
+if (-not (Test-Path $GlobalSkills)) {
+    New-Item -Path $GlobalSkills -ItemType Directory -Force | Out-Null
+}
 
-powershell -ExecutionPolicy Bypass -File "$AshScript" init
+$LocalSkills = Join-Path $SkillsHubHome "skills"
+if (Test-Path $LocalSkills) {
+    Copy-Item -Path (Join-Path $LocalSkills "*") -Destination $GlobalSkills -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "[OK] Skills synced to global directory." -ForegroundColor Green
+} else {
+    Write-Host "[WARN] Local skills directory not found, skipping sync." -ForegroundColor Yellow
+}
 
-Write-Host "`n🎉 恭喜！ASH 已安装成功。" -ForegroundColor Green
-Write-Host "请重启您的 PowerShell 或运行 '. `$PROFILE' 以使更改生效。" -ForegroundColor Cyan
-Write-Host "现在您可以直接输入 'ash' 来管理您的 AI 技能了！" -ForegroundColor Cyan
+# 4. Initialize IDE environments
+Write-Host "[*] Initializing IDE environments..." -ForegroundColor Yellow
+try {
+    powershell -ExecutionPolicy Bypass -File "$AshScript" init
+} catch {
+    Write-Host "[WARN] IDE init failed: $_" -ForegroundColor Yellow
+}
 
+# Done
 Write-Host ""
-Write-Host "✅ 安装完成！请按 Enter 键退出..." -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host " ASH installed successfully!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Yellow
+Write-Host "  1. Restart PowerShell or run:  . `$PROFILE" -ForegroundColor White
+Write-Host "  2. Then use 'ash' commands!" -ForegroundColor White
+Write-Host ""
+Write-Host "Quick start:" -ForegroundColor Yellow
+Write-Host "  ash list           - View all available skills" -ForegroundColor White
+Write-Host "  ash install --all  - Install all skills" -ForegroundColor White
+Write-Host "  ash help           - Show help" -ForegroundColor White
+Write-Host ""
+Write-Host "Press Enter to exit..." -ForegroundColor Gray
 Read-Host
