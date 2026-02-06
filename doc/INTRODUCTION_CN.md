@@ -44,34 +44,6 @@
 
 ---
 
-## 部分示例
-
-1. 初始化（检测环境），指令会智能检测安装的IDE
-
-![image-20260207002622679](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207002622679.png)
-
-2. 安装github技能库的skill，会自动检测技能库的可用skill
-
-![image-20260207002917963](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207002917963.png)
-
-执行安装，会自动安装到本地的IDE全局目录
-
-![image-20260207003101700](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003101700.png)
-
-3. 查看本地技能仓库可用技能
-
-![image-20260207003246130](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003246130.png)
-
-![image-20260207003315700](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003315700.png)
-
-4. 查看各IDE已安装技能
-
-![image-20260207003348005](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003348005.png)
-
-5. 一键安装全部技能到所有IDE
-
-![image-20260207003443206](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003443206.png)
-
 ## ✨ 核心亮点
 
 ### ⚡️ 一键全端同步
@@ -188,6 +160,34 @@ ash sync
 - 🔧 **效率狂人**：像管理代码依赖一样管理你的 AI Skills
 
 ---
+
+## 部分示例
+
+1. 初始化（检测环境），指令会智能检测安装的IDE
+
+![image-20260207002622679](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207002622679.png)
+
+2. 安装github技能库的skill，会自动检测技能库的可用skill
+
+![image-20260207002917963](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207002917963.png)
+
+执行安装，会自动安装到本地的IDE全局目录
+
+![image-20260207003101700](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003101700.png)
+
+3. 查看本地技能仓库可用技能
+
+![image-20260207003246130](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003246130.png)
+
+![image-20260207003315700](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003315700.png)
+
+4. 查看各IDE已安装技能
+
+![image-20260207003348005](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003348005.png)
+
+5. 一键安装全部技能到所有IDE
+
+![image-20260207003443206](https://tian-picture-bed.oss-cn-shanghai.aliyuncs.com/tech/image-20260207003443206.png)
 
 ## 🔗 相关链接
 
