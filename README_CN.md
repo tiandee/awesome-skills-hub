@@ -1,11 +1,30 @@
 # Awesome-Skills-Hub (ASH) 🚀
 
-一个轻量级的 AI IDE 技能（Skills/Rules）管理工具，旨在跨平台同步和分发 AI 提示词、规则与架构指令。
-
-[English](README.md) | **简体中文**
+> 一个轻量级的 AI IDE 技能（Skills/Rules）管理工具，旨在跨平台同步和分发 AI 提示词、规则与架构指令。
 
 [![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
 [![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
+
+[English](README.md) | **简体中文** | [贡献指南](CONTRIBUTING.md)
+
+---
+
+## 📑 目录
+
+- [🌟 核心亮点](#-核心亮点)
+- [💡 为什么选择 ASH?](#-为什么选择-ash-桥梁哲学)
+- [📦 安装指南](#-安装指南)
+- [📖 使用手册](#-使用手册)
+- [🚀 生态集成](#-生态集成-ecosystem-integration)
+- [📂 系统架构](#-系统架构)
+- [🤝 支持平台](#-支持平台)
+- [🛠️ 贡献代码](#️-贡献代码)
+
+---
+
+## 🎬 快速演示
+
+![ASH CLI 演示](assets/demo.webp)
 
 ---
 
@@ -17,6 +36,7 @@
 - **实时软链**：本地更新技能文件，所有关联的 IDE 瞬间生效。
 - **生态集成**：支持自动导入 `npx skills` 下载的技能 (详见[生态集成节](#-生态集成-ecosystem-integration))。
 - **智能 Monorepo 发现**: 交互式扫描并安装复杂仓库中的技能（支持多选/全选，如 `huggingface/skills`）。
+- **元技能 (Meta-Skill)**: 赋能您的 Agent 自主搜索并安装所需技能 (`ash search` -> `ash add`)。
 
 ## 💡 为什么选择 ASH? ("桥梁"哲学)
 
@@ -238,8 +258,8 @@ npm uninstall -g askill
 
 ## 🧩 交互亮点
 
-- **智能纠错**：输错命令时（如 `ash ad`），工具会智能提示：“您是不是想输入 `ash add`？”
-- **透明反馈**：批量操作时提供清晰的 IDE 级汇总汇总报告，确保操作可审计。
+- **智能纠错**：输错命令时（如 `ash intall`），工具会智能提示："您是不是想输入 `ash install`？"
+- **透明反馈**：批量操作时提供清晰的 IDE 级汇总报告，确保操作可审计。
 
 ## 🤝 支持平台
 

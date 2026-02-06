@@ -1,15 +1,32 @@
-# Awesome-Skills-Hub (ASH)
+# Awesome-Skills-Hub (ASH) 🚀
 
 > **"Write Once, Link Everywhere"** - The "Homebrew" for AI IDE Skills.
 
 [![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
 [![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
 
-**Awesome-Skills-Hub (ASH) 🚀**
-
 A lightweight package manager for AI IDE skills, rules, and architecture instructions.
 
-**English** | [简体中文](README_CN.md)
+**English** | [简体中文](README_CN.md) | [Contributing](CONTRIBUTING.md)
+
+---
+
+## 📑 Table of Contents
+
+- [🚀 Features](#-features)
+- [💡 Why ASH?](#-why-ash-the-bridge-philosophy)
+- [📦 Installation](#-installation)
+- [📖 Usage Manual](#-usage-manual)
+- [🚀 Ecosystem Integration](#-ecosystem-integration)
+- [📂 System Architecture](#-system-architecture)
+- [🤝 Supported Platforms](#-supported-platforms)
+- [🛠️ Contributing](#️-contributing)
+
+---
+
+## 🎬 Quick Demo
+
+![ASH CLI Demo](assets/demo.webp)
 
 ---
 
@@ -88,7 +105,7 @@ curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/ins
 > ```
 
 ### 4. Manual Install (Clone)
-If you prefer managing the repo yourself:
+If you want to contribute code:
 
 **macOS / Linux:**
 ```bash
