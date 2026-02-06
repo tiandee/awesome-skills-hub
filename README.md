@@ -96,13 +96,13 @@ If you don't have Node.js installed:
 curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
 ```
 
-**Windows (Pending Adaptation):**
-> Please use WSL for development and contribution for now.
-> ```powershell
-> # (Coming Soon)
-> # .\install.ps1
-> # . $PROFILE
-> ```
+**Windows (Supported):**
+```powershell
+# One-line install (requires Git)
+irm https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 | iex
+# Reload profile to use ash
+. $PROFILE
+```
 
 ### 4. Manual Install (Clone)
 If you want to contribute code:
@@ -114,6 +114,14 @@ bash install.sh
 
 # Reload shell config
 source ~/.zshrc  # or ~/.bashrc
+```
+
+**Windows:**
+```powershell
+# From project root after clone
+.\install.ps1
+# Reload profile
+. $PROFILE
 ```
 
 **The installer will:**

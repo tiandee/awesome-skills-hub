@@ -90,13 +90,13 @@ ash list
 curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
 ```
 
-**Windows (待适配):**
-> Windows 原生支持正在重构中，请暂时使用 WSL (Windows Subsystem for Linux)。
-> ```powershell
-> # (即将推出)
-> # iwr https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 -useb | iex
-> # . $PROFILE
-> ```
+**Windows (已支持):**
+```powershell
+# PowerShell 一键安装（若未安装 Git 请先安装）
+irm https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 | iex
+# 重载配置后即可使用 ash 命令
+. $PROFILE
+```
 
 ### 4. 手动安装 (Clone)
 如果您希望参与贡献代码：
@@ -108,6 +108,14 @@ bash install.sh
 
 # 重启终端或运行源配置
 source ~/.zshrc  # 或 ~/.bashrc
+```
+
+**Windows:**
+```powershell
+# 克隆后在项目目录执行
+.\install.ps1
+# 重载配置
+. $PROFILE
 ```
 
 **安装脚本将自动执行：**
