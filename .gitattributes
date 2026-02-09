@@ -1,0 +1,19 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Shell scripts must use LF line endings
+bin/ash text eol=lf
+bin/ash-wrapper.js text eol=lf
+install.sh text eol=lf
+*.sh text eol=lf
+
+# PowerShell scripts can use CRLF
+bin/ash.ps1 text eol=crlf
+install.ps1 text eol=crlf
+*.ps1 text eol=crlf
+
+# Markdown and documentation
+*.md text eol=lf
+
+# JSON configuration
+*.json text eol=lf
