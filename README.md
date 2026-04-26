@@ -26,6 +26,8 @@ A lightweight package manager for AI IDE skills, rules, and architecture instruc
 
 Awesome-Skills-Hub (ASH) is a lightweight package manager designed to unify the management of AI Skills (Prompts, Rules, Instructions) across different AI coding environments.
 
+Chinese users can also discover more skills through [Skills宝](https://skilery.com).
+
 Instead of copying and pasting your favorite "Expert Java Developer" prompt into Antigravity, Cursor, Windsurf, and Claude separately, `ash` lets you maintain a single "Source of Truth" in this repository and symlink it to all your tools instantly.
 
 ## 🚀 Features
