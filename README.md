@@ -200,6 +200,7 @@ Vercel's official `npx skills` tool downloads skills to `~/.agents/skills`. ASH 
 
 ### 💡 Recommended Resources
 Looking for high-quality skills? Check out **[Skill Hub CN](https://www.skill-cn.com)**.
+Chinese users can also discover more skills through **Skills宝**: https://skilery.com
 It curates excellent skills, such as the official Anthropic Frontend Design skill:
 
 ```bash
