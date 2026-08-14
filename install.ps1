@@ -95,24 +95,10 @@ function ash { powershell -ExecutionPolicy Bypass -File "$AshScript" `$args }
     Write-Host "[WARN] Failed to configure alias: $_" -ForegroundColor Yellow
 }
 
-# 3. Sync skills to global directory
-Write-Host "[*] Syncing skills to ~/.ash ..." -ForegroundColor Yellow
-$AshHome = Join-Path $env:USERPROFILE ".ash"
-$GlobalSkills = Join-Path $AshHome "skills"
-if (-not (Test-Path $GlobalSkills)) {
-    New-Item -Path $GlobalSkills -ItemType Directory -Force | Out-Null
-}
-
-$LocalSkills = Join-Path $SkillsHubHome "skills"
-if (Test-Path $LocalSkills) {
-    Copy-Item -Path (Join-Path $LocalSkills "*") -Destination $GlobalSkills -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "[OK] Skills synced to global directory." -ForegroundColor Green
-} else {
-    Write-Host "[WARN] Local skills directory not found, skipping sync." -ForegroundColor Yellow
-}
-
-# 4. Initialize IDE environments
-Write-Host "[*] Initializing IDE environments..." -ForegroundColor Yellow
+# 3. Initialize the universal Skill library and IDE environments.
+# ash.ps1 safely migrates only missing legacy ~/.ash/skills entries, then seeds
+# missing bundled Skills into ~/.agents/skills without overwriting existing data.
+Write-Host "[*] Initializing universal Skill library (~/.agents/skills) and IDE environments..." -ForegroundColor Yellow
 try {
     powershell -ExecutionPolicy Bypass -File "$AshScript" init
 } catch {

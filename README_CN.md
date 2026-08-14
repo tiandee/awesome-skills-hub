@@ -24,11 +24,11 @@
 
 ## 🌟 核心亮点
 
-- **双重作用域 (Dual-Scope)**：支持 **全局作用域**（用户目录 `~/.ash/skills`）和 **项目作用域**（项目内的 IDE 技能配置目录）双维度管理。
+- **双重作用域 (Dual-Scope)**：支持 **全局作用域**（通用目录 `~/.agents/skills`）和 **项目作用域**（项目内的 IDE 技能配置目录）双维度管理。
 - **通用 IDE 桥接**: 标准化的 `.claude/skills` 架构，自动生成兼容 **Cursor**, **Windsurf**, **TRAE**, **Antigravity** 和 **Copilot** 的桥接配置。
-- **Homebrew 式管理**：将技能统一托管在系统家目录 (`~/.ash`)，做 IDE 之外的"军火库"。
-- **实时软链**：本地更新技能文件，所有关联的 IDE 瞬间生效。
-- **生态集成**：支持自动导入 `npx skills` 下载的技能 (详见[生态集成节](#-生态集成-ecosystem-integration))。
+- **Homebrew 式管理**：将技能统一托管在标准 Agents 目录 (`~/.agents/skills`)，做客户端之外的"军火库"。
+- **实时软链**：更新通用库中的 Skill，所有已关联客户端立即生效。
+- **生态集成**：直接复用 `npx skills` 下载的技能，不再维护第二份副本（详见[生态集成节](#-生态集成-ecosystem-integration)）。
 - **智能 Monorepo 发现**: 交互式扫描并安装复杂仓库中的技能（支持多选/全选，如 `huggingface/skills`）。
 - **元技能 (Meta-Skill)**: 赋能您的 Agent 自主搜索并安装所需技能 (`ash search` -> `ash add`)。
 
@@ -69,7 +69,7 @@ npx askill install pdf
 # 1. 全局安装 (获取 'ash' 命令，将其加入系统 PATH)
 npm install -g askill
 
-# 2. 初始化环境 (自动检测您的 IDE 并创建 ~/.ash 技能库)
+# 2. 初始化环境 (自动检测 IDE 并准备 ~/.agents/skills 通用库)
 ash init
 
 # 3. 验证安装 (查看所有可用技能)
@@ -114,7 +114,7 @@ source ~/.zshrc  # 或 ~/.bashrc
 
 **安装脚本将自动执行：**
 1. 检测并初始化本地所有主流 AI IDE 环境。
-2. **初始化全局目录**：在您的家目录创建 `~/.ash/skills` (Windows 为 `~\.ash\skills`) 作为持久化存储。
+2. **初始化通用目录**：向 `~/.agents/skills`（Windows 为 `~\.agents\skills`）补充缺失的内置 Skill，绝不覆盖现有同名条目。
 3. 自动配置环境变量，支持 **Zsh**, **Bash** 和 **Fish**。
 4. 实现全局命令 `ash` 的一键访问。
 
@@ -137,7 +137,7 @@ ash info pdf       # 支持模糊匹配名称
 ```
 
 ### 3. 安装技能 (全局 / 用户级)
-将技能链接到您的 **用户家目录** (`~/.ash/skills`)，即刻在所有支持的 IDE 全局配置中生效。
+从通用 **Agents 技能库** (`~/.agents/skills`) 将 Skill 链接到检测到的客户端目录。
 
 ```bash
 ash add pdf               # 智能通过名称安装 (全局)。(install 的现代别名)
@@ -166,7 +166,7 @@ ash add --all -p             # 将所有技能批量注入当前项目
 
 | 命令 | 用途描述 | 基本用法示例 |
 | :--- | :--- | :--- |
-| **`init`** | **初始化 ASH 环境**。在本地创建 `~/.ash` 目录并准备内置技能库。 | `ash init` |
+| **`init`** | **初始化 ASH 环境**。准备 `~/.agents/skills`、ASH 状态目录及检测到的客户端目录。 | `ash init` |
 | **`list`** | **列出可用技能**。显示所有内置、下载及系统技能的名称、分类和物理路径。 | `ash list` (别名: `ls`) |
 | **`add`** | **安装并分发技能**。将指定技能软链接到所有支持的 AI IDE 中。同时也支持从 GitHub 直接下载并安装。 | `ash add <技能名>`<br>`ash add <GitHub_URL>`<br>`ash add --all` (全装) |
 | **`info`** | **查看技能详情**。显示技能的元数据、描述以及核心 Prompt 的预览。 | `ash info <技能名>` |
@@ -180,13 +180,15 @@ ash add --all -p             # 将所有技能批量注入当前项目
 | **`package`** | **确定性打包**。生成内容可复现的 `.skill` 包，并自动排除 `.env`。 | `ash package pdf`<br>`ash package --all` |
 | **`uninstall`** | **移除技能链接**。从各 IDE 的技能目录中通过软链接移除指定技能（不删源文件）。 | `ash uninstall <技能名>`<br>`ash uninstall --all` |
 | **`clean`** | **清空 IDE 目录**。一键清空某个 IDE 或所有 IDE 下的所有技能链接。 | `ash clean <ide_name>`<br>`ash clean --all` |
-| **`sync`** | **生态同步**。扫描 Vercel/Agents 等外部生态的技能目录并导入到 ASH 体系中。 | `ash sync` |
+| **`sync`** | **仓库同步**。拉取仓库更新，并仅向通用库补充缺失的内置 Skill。 | `ash sync` |
 
 ---
 
 ## 🩺 Skill 控制面与一键修复
 
-ASH 现在把 `~/.ash/skills` 作为自身管理的技能库，同时只读聚合第三方 Agents、Codex Store、Codex 系统和插件 Skill。`~/.agents/skills` 是默认的通用分发入口；Cursor、Claude、TRAE 等目录在检测到对应客户端后分别纳入检查，并不是只有 `.agents/skills` 才能生效。
+ASH 现在把 `~/.agents/skills` 作为唯一的通用技能库和标准激活入口，既支持实体目录，也支持顶层 Skill 软链接。Cursor、Claude、TRAE 等客户端目录是分发目标；Codex Store、Codex 系统和插件 Skill 仍保持只读聚合。`~/.ash` 只保存控制面状态、目录、安装包和可回滚事务。
+
+升级时，写操作会递归发现旧 `~/.ash/skills` 中的 Skill，并只把缺失名称补迁为标准扁平布局，绝不覆盖已有同名条目；ASH 已不再从旧目录加载。处理完同名冲突后即可归档旧目录。
 
 ```bash
 ash inventory             # 查看所有来源和所有权
@@ -202,18 +204,19 @@ ash rollback latest --apply
 ---
 
 ## 🚀 生态集成 (Ecosystem Integration)
-**ASH 能够自动感知并导入 Vercel 生态的技能。**
-Vercel 官方推出了 `npx skills` 工具，它将技能下载到 `~/.agents/skills`。ASH 可以自动扫描该目录，将上面的优质技能**一键桥接**到所有 IDE 中。
+**ASH 与 Vercel 生态直接共用标准 Agents 技能库。**
+Vercel 官方 `npx skills` 工具会把 Skill 下载到 `~/.agents/skills`。ASH 原地发现这些 Skill，不再复制导入，并可安全桥接到各客户端目录。
 
 1. **下载**: 使用 Vercel 工具下载你喜欢的技能：
    ```bash
    npx skills add user/repo
    ```
-2. **同步**: 让 ASH 接管并分发：
+2. **检查并桥接**：先预览冲突，再执行安全修复：
    ```bash
-   ash sync
+   ash doctor
+   ash repair --apply
    ```
-   *(此时 ASH 会提示发现新技能，确认后即可在 Cursor/Windsurf 等工具中直接使用)*
+   `repair` 会跳过普通文件、实体目录及其他来源拥有的链接。
 
 ### 💡 资源推荐
 想要寻找优质的中文 Skill？推荐访问 **[Skill Hub 中国](https://www.skill-cn.com)**。
@@ -278,8 +281,9 @@ npm uninstall -g askill
 ## 📂 系统架构
 
 - **软件家目录 (`ASH_HOME`)**: `~/.ash` (或 `$env:USERPROFILE\.ash`)
-- **技能存储仓**: `~/.ash/skills/`
-- **IDE 链接目标**: 所有 IDE 中的软链接均精准指向上述全局目录。
+- **通用技能库**: `~/.agents/skills/`
+- **ASH 状态与输出**: `~/.ash/state`、`~/.ash/CATALOG.md`、`~/.ash/packages`
+- **客户端链接**: 检测到的 IDE 目录链接到通用库中的 Skill。
 
 ## 🧩 交互亮点
 

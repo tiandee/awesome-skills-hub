@@ -15,20 +15,20 @@ It answers four questions:
 
 | Source | Discovery | Control-plane authority |
 | --- | --- | --- |
-| ASH library | `~/.ash/skills/**/SKILL.md` | Manage links, catalog, and packages; never rewrite Skill instructions |
-| Agents ecosystem | `~/.agents/.skill-lock.json` and `~/.agents/skills` | Observe only unless the Skill is ASH-owned |
+| Universal Agents library | `~/.agents/skills/**/SKILL.md` | Canonical Skill content; manage client links, catalog, and packages; never rewrite instructions |
+| Agents installer metadata | `~/.agents/.skill-lock.json` | Observe provenance without duplicating library records |
 | Codex Store | `.skills_store_lock.json` | Observe only |
 | Codex system | `~/.codex/skills/.system` | Observe only |
 | Codex plugins | `~/.codex/plugins/cache/**/skills` | Observe only |
 | Unknown installs | Present on disk without an ownership record | Report only |
 
-When ASH and another manager claim the same name, `doctor` reports `MULTIPLE_MANAGERS`; `repair` never chooses an owner automatically.
+When separately configured roots claim the same name, `doctor` reports `MULTIPLE_MANAGERS`; `repair` never chooses an owner automatically.
 
 ## Target activation
 
-The default configuration always enables `~/.agents/skills` as the universal Agent target. Client-specific directories such as `~/.cursor/skills` and `~/.claude/skills` become active only when their parent client directory is detected.
+The default configuration uses `~/.agents/skills` as both the canonical universal library and the standard Agents activation root. Client-specific directories such as `~/.cursor/skills` and `~/.claude/skills` become active only when their parent client directory is detected.
 
-This means every Skill does not have to live physically in `.agents/skills`. ASH keeps one source copy under `~/.ash/skills` and creates links only in the activation roots that need them.
+The library accepts both real Skill directories and top-level symlinks to independently maintained source trees. The library itself cannot be configured as a reconciliation target, preventing self-links and accidental source deletion.
 
 Targets, inclusion lists, sources, and outputs are declared in `ash-control.json`. A target can be:
 
@@ -56,6 +56,10 @@ ash package <name>|--all            build deterministic .skill archives
 - `2`: configuration, metadata, or ownership conflicts exist.
 
 Read-only control-plane commands do not trigger ASH first-run initialization.
+
+## Legacy migration
+
+Mutating Bash and PowerShell commands detect legacy `~/.ash/skills`, recursively discover Skills, flatten category folders into the standard layout, copy only names missing from `~/.agents/skills`, and never overwrite an existing real directory or symlink. ASH then loads exclusively from the Agents library. Review same-name entries and links before moving the unused legacy directory to an archive.
 
 ## Repair transaction
 

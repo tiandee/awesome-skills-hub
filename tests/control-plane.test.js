@@ -39,22 +39,22 @@ function writeSkill(skillPath, name, description) {
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ash-control-'));
-  const library = path.join(root, 'library');
-  const agentsRoot = path.join(root, 'agents', 'skills');
+  const library = path.join(root, '.agents', 'skills');
+  const clientRoot = path.join(root, 'client', 'skills');
   const codexRoot = path.join(root, 'codex', 'skills');
   const pluginCache = path.join(root, 'codex', 'plugins');
   const stateDir = path.join(root, 'state');
   fs.mkdirSync(library, { recursive: true });
-  fs.mkdirSync(agentsRoot, { recursive: true });
+  fs.mkdirSync(clientRoot, { recursive: true });
   fs.mkdirSync(codexRoot, { recursive: true });
   fs.mkdirSync(pluginCache, { recursive: true });
 
   const alpha = writeSkill(path.join(library, 'alpha'), 'alpha', 'Alpha test workflow.');
   const beta = writeSkill(path.join(library, 'beta'), 'beta', 'Beta test workflow.');
-  controlPlane.createDirectoryLink(alpha, path.join(agentsRoot, 'alpha'));
+  controlPlane.createDirectoryLink(alpha, path.join(clientRoot, 'alpha'));
 
-  writeSkill(path.join(agentsRoot, 'third-party'), 'third-party', 'Installed from a lock file.');
-  fs.writeFileSync(path.join(root, 'agents', '.skill-lock.json'), JSON.stringify({
+  writeSkill(path.join(library, 'third-party'), 'third-party', 'Installed from a lock file.');
+  fs.writeFileSync(path.join(root, '.agents', '.skill-lock.json'), JSON.stringify({
     version: 3,
     skills: {
       'third-party': {
@@ -74,10 +74,10 @@ function fixture() {
     schema_version: 1,
     library: { path: library, exclude: [] },
     targets: {
-      'generic-agents': { path: agentsRoot, skills: ['*'], enabled: true },
+      client: { path: clientRoot, skills: ['*'], enabled: true },
     },
     sources: {
-      agents_lock: path.join(root, 'agents', '.skill-lock.json'),
+      agents_lock: path.join(root, '.agents', '.skill-lock.json'),
       codex_root: codexRoot,
       codex_store_lock: path.join(codexRoot, '.skills_store_lock.json'),
       plugin_cache: pluginCache,
@@ -97,7 +97,7 @@ function fixture() {
   return {
     root,
     library,
-    agentsRoot,
+    clientRoot,
     codexRoot,
     stateDir,
     configPath,
@@ -117,28 +117,29 @@ function withFixture(callback) {
   }
 }
 
-test('discovers ASH and external Skill sources', function run() {
+test('discovers the universal Agents library without lock-file duplicates', function run() {
   withFixture(function inspect(current) {
     const library = controlPlane.discoverLibrary(current.settings);
-    assert.deepStrictEqual(library.map(function name(skill) { return skill.directoryName; }), ['alpha', 'beta']);
+    assert.deepStrictEqual(library.map(function name(skill) { return skill.directoryName; }), ['alpha', 'beta', 'third-party']);
     const inventory = controlPlane.buildInventory(current.settings);
     const byKey = new Map(inventory.records.map(function entry(record) {
       return [record.name + ':' + record.source, record];
     }));
-    assert.strictEqual(byKey.get('alpha:ash-library').status, 'linked');
-    assert.strictEqual(byKey.get('beta:ash-library').status, 'missing');
-    assert.strictEqual(byKey.get('third-party:third-party').status, 'installed');
+    assert.strictEqual(byKey.get('alpha:agents-library').status, 'linked');
+    assert.strictEqual(byKey.get('beta:agents-library').status, 'missing');
+    assert.strictEqual(byKey.get('third-party:agents-library').status, 'missing');
+    assert.strictEqual(byKey.has('third-party:third-party'), false);
     assert.strictEqual(byKey.get('manual-codex:untracked-codex').status, 'untracked');
   });
 });
 
 test('doctor is read-only and reports missing links', function run() {
   withFixture(function inspect(current) {
-    const before = fs.readdirSync(current.agentsRoot).sort();
+    const before = fs.readdirSync(current.clientRoot).sort();
     const issues = controlPlane.runDoctor(current.settings);
-    const after = fs.readdirSync(current.agentsRoot).sort();
+    const after = fs.readdirSync(current.clientRoot).sort();
     assert.deepStrictEqual(after, before);
-    assert.strictEqual(controlPlane.lexists(path.join(current.agentsRoot, 'beta')), false);
+    assert.strictEqual(controlPlane.lexists(path.join(current.clientRoot, 'beta')), false);
     const codes = new Set(issues.map(function code(item) { return item.code; }));
     assert(codes.has('ASH_LINK_MISSING'));
     assert(codes.has('CATALOG_STALE'));
@@ -152,16 +153,16 @@ test('repair applies safe actions and rolls them back', function run() {
     assert.deepStrictEqual(new Set(plan.actions.map(function kind(action) { return action.kind; })), new Set(['symlink_create', 'file_write']));
     const transaction = controlPlane.applyRepair(current.settings, plan);
     assert(fs.existsSync(transaction));
-    assert.strictEqual(controlPlane.canonicalPath(path.join(current.agentsRoot, 'beta')), controlPlane.canonicalPath(current.beta));
+    assert.strictEqual(controlPlane.canonicalPath(path.join(current.clientRoot, 'beta')), controlPlane.canonicalPath(current.beta));
     assert(controlPlane.catalogIsCurrent(current.settings));
 
     const preview = controlPlane.rollbackPreview(current.settings, 'latest');
     assert.strictEqual(preview.transactionFile, transaction);
     assert(preview.descriptions.some(function removeLink(item) { return item.indexOf('REMOVE_LINK') === 0; }));
     controlPlane.applyRollback(current.settings, 'latest');
-    assert.strictEqual(controlPlane.lexists(path.join(current.agentsRoot, 'beta')), false);
+    assert.strictEqual(controlPlane.lexists(path.join(current.clientRoot, 'beta')), false);
     assert.strictEqual(fs.existsSync(current.settings.catalogPath), false);
-    assert(fs.lstatSync(path.join(current.agentsRoot, 'alpha')).isSymbolicLink());
+    assert(fs.lstatSync(path.join(current.clientRoot, 'alpha')).isSymbolicLink());
   });
 });
 
@@ -187,7 +188,7 @@ test('repair tracks missing parent directories', function run() {
 
 test('repair never overwrites a conflicting directory', function run() {
   withFixture(function inspect(current) {
-    const conflict = path.join(current.agentsRoot, 'beta');
+    const conflict = path.join(current.clientRoot, 'beta');
     fs.mkdirSync(conflict);
     const marker = path.join(conflict, 'keep.txt');
     fs.writeFileSync(marker, 'keep', 'utf8');
@@ -220,7 +221,7 @@ test('detected targets with an invalid path remain visible as conflicts', functi
 
 test('broken links are repaired and restored by rollback', function run() {
   withFixture(function inspect(current) {
-    const broken = path.join(current.agentsRoot, 'beta');
+    const broken = path.join(current.clientRoot, 'beta');
     const oldTarget = path.join(current.root, 'missing-beta');
     controlPlane.createDirectoryLink(oldTarget, broken);
     assert.strictEqual(controlPlane.linkStatus(broken, current.beta).status, 'broken');
@@ -243,7 +244,7 @@ test('rollback refuses to overwrite a later user edit', function run() {
     assert.throws(function rollback() {
       controlPlane.applyRollback(current.settings, path.basename(path.dirname(transaction)));
     }, /user-modified/);
-    assert(fs.lstatSync(path.join(current.agentsRoot, 'beta')).isSymbolicLink());
+    assert(fs.lstatSync(path.join(current.clientRoot, 'beta')).isSymbolicLink());
     assert.strictEqual(fs.readFileSync(current.settings.catalogPath, 'utf8'), 'user edit\n');
   });
 });
@@ -251,7 +252,7 @@ test('rollback refuses to overwrite a later user edit', function run() {
 test('rollback preflight prevents partial restore', function run() {
   withFixture(function inspect(current) {
     const transaction = controlPlane.applyRepair(current.settings, controlPlane.buildRepairPlan(current.settings));
-    const betaLink = path.join(current.agentsRoot, 'beta');
+    const betaLink = path.join(current.clientRoot, 'beta');
     fs.unlinkSync(betaLink);
     controlPlane.createDirectoryLink(current.alpha, betaLink);
     const generatedCatalog = fs.readFileSync(current.settings.catalogPath, 'utf8');
@@ -289,7 +290,7 @@ test('CLI JSON inventory uses the selected configuration', function run() {
     const exitCode = controlPlane.main([
       '--config', current.configPath,
       '--home', current.root,
-      'inventory', '--source', 'ash-library', '--json',
+      'inventory', '--source', 'agents-library', '--json',
     ], {
       projectRoot: current.root,
       env: { HOME: current.root },
@@ -298,8 +299,106 @@ test('CLI JSON inventory uses the selected configuration', function run() {
     });
     assert.strictEqual(exitCode, 0, errors);
     const payload = JSON.parse(output);
-    assert.deepStrictEqual(payload.skills.map(function name(record) { return record.name; }).sort(), ['alpha', 'beta']);
+    assert.deepStrictEqual(payload.skills.map(function name(record) { return record.name; }).sort(), ['alpha', 'beta', 'third-party']);
   });
+});
+
+test('discovers and packages a top-level symlinked library Skill', function run() {
+  withFixture(function inspect(current) {
+    const external = writeSkill(path.join(current.root, 'external', 'linked-skill'), 'linked-skill', 'Linked source workflow.');
+    fs.writeFileSync(path.join(external, 'example.txt'), 'linked\n', 'utf8');
+    controlPlane.createDirectoryLink(external, path.join(current.library, 'linked-skill'));
+    const linked = controlPlane.discoverLibrary(current.settings).find(function match(skill) {
+      return skill.directoryName === 'linked-skill';
+    });
+    assert(linked);
+    assert.strictEqual(fs.lstatSync(linked.path).isSymbolicLink(), true);
+    const entries = controlPlane.buildArchiveEntries(linked).map(function name(entry) { return entry.name; });
+    assert(entries.includes('linked-skill/SKILL.md'));
+    assert(entries.includes('linked-skill/example.txt'));
+    const plan = controlPlane.buildRepairPlan(current.settings);
+    const clientLink = plan.actions.find(function linkedAction(action) {
+      return action.kind === 'symlink_create' && action.path === path.join(current.clientRoot, 'linked-skill');
+    });
+    assert(clientLink);
+    assert.strictEqual(clientLink.target, path.join(current.library, 'linked-skill'));
+  });
+});
+
+test('reports a broken symlink in the universal Agents library', function run() {
+  withFixture(function inspect(current) {
+    const broken = path.join(current.library, 'broken-skill');
+    controlPlane.createDirectoryLink(path.join(current.root, 'missing-skill'), broken);
+    const inventory = controlPlane.buildInventory(current.settings);
+    const record = inventory.records.find(function match(item) {
+      return item.name === 'broken-skill' && item.source === 'agents-library';
+    });
+    assert(record);
+    assert.strictEqual(record.status, 'broken');
+    assert(controlPlane.runDoctor(current.settings).some(function issue(item) {
+      return item.code === 'AGENTS_LIBRARY_BROKEN';
+    }));
+  });
+});
+
+test('rejects a client target that reuses the universal library path', function run() {
+  withFixture(function inspect(current) {
+    const payload = JSON.parse(fs.readFileSync(current.configPath, 'utf8'));
+    payload.targets.client.path = current.library;
+    fs.writeFileSync(current.configPath, JSON.stringify(payload, null, 2), 'utf8');
+    assert.throws(function reload() {
+      controlPlane.loadSettings({
+        projectRoot: current.root,
+        configPath: current.configPath,
+        homeDir: current.root,
+        env: { HOME: current.root },
+      });
+    }, /must not reuse the universal Skill library path/);
+  });
+});
+
+test('mutating startup migrates only missing legacy entries without breaking or overwriting Agents data', function run() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ash-legacy-migration-'));
+  try {
+    const legacyRoot = path.join(root, '.ash', 'skills');
+    const agentsRoot = path.join(root, '.agents', 'skills');
+    writeSkill(path.join(legacyRoot, 'legacy-only'), 'legacy-only', 'Legacy-only workflow.');
+    writeSkill(path.join(legacyRoot, 'legacy-category', 'legacy-nested'), 'legacy-nested', 'Nested legacy workflow.');
+    writeSkill(path.join(legacyRoot, 'shared'), 'shared', 'Legacy shared workflow.');
+    const linkedLegacy = writeSkill(path.join(legacyRoot, 'linked-legacy'), 'linked-legacy', 'Linked legacy workflow.');
+    const externalLegacy = writeSkill(path.join(root, 'external-legacy'), 'legacy-linked-only', 'External legacy workflow.');
+    controlPlane.createDirectoryLink(externalLegacy, path.join(legacyRoot, 'legacy-linked-only'));
+    const agentsShared = writeSkill(path.join(agentsRoot, 'shared'), 'shared', 'Agents-owned workflow.');
+    controlPlane.createDirectoryLink(linkedLegacy, path.join(agentsRoot, 'linked-legacy'));
+
+    const result = childProcess.spawnSync(
+      '/bin/bash',
+      [path.join(__dirname, '..', 'bin', 'ash'), 'list'],
+      {
+        cwd: path.join(__dirname, '..'),
+        env: Object.assign({}, process.env, { HOME: root }),
+        encoding: 'utf8',
+      },
+    );
+    assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+    assert(fs.existsSync(path.join(agentsRoot, 'legacy-only', 'SKILL.md')));
+    assert(fs.existsSync(path.join(agentsRoot, 'legacy-nested', 'SKILL.md')));
+    assert.strictEqual(controlPlane.lexists(path.join(agentsRoot, 'legacy-category')), false);
+    assert(fs.existsSync(path.join(agentsRoot, 'legacy-linked-only', 'SKILL.md')));
+    assert.strictEqual(fs.lstatSync(path.join(agentsRoot, 'legacy-linked-only')).isSymbolicLink(), false);
+    assert(fs.existsSync(path.join(agentsRoot, 'skill-finder', 'SKILL.md')));
+    assert.strictEqual(controlPlane.lexists(path.join(agentsRoot, 'system')), false);
+    assert.strictEqual(
+      fs.readFileSync(path.join(agentsShared, 'SKILL.md'), 'utf8').includes('Agents-owned workflow.'),
+      true,
+    );
+    assert.strictEqual(fs.lstatSync(path.join(agentsRoot, 'linked-legacy')).isSymbolicLink(), true);
+    assert(fs.existsSync(path.join(agentsRoot, 'linked-legacy', 'SKILL.md')));
+    assert(fs.existsSync(legacyRoot));
+    assert(result.stdout.includes('ASH 已不再从该目录加载技能'));
+  } finally {
+    removeTree(root);
+  }
 });
 
 test('read-only doctor does not initialize a missing ASH home', function run() {
@@ -313,6 +412,7 @@ test('read-only doctor does not initialize a missing ASH home', function run() {
       { cwd: path.join(__dirname, '..'), env, encoding: 'utf8' },
     );
     assert.strictEqual(result.status, 2, result.stdout + result.stderr);
+    assert.strictEqual(fs.existsSync(path.join(root, '.agents')), false);
     assert.strictEqual(fs.existsSync(path.join(root, '.ash')), false);
     const payload = JSON.parse(result.stdout);
     assert.strictEqual(payload.issues[0].code, 'ASH_LIBRARY_NOT_FOUND');

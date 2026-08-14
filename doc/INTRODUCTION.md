@@ -30,8 +30,8 @@
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                    ~/.ash/skills/                          │
-│        (Your skill arsenal — one source, linked everywhere)│
+│                  ~/.agents/skills/                         │
+│       (Universal Skill library and Agents activation root) │
 └─────────────┬──────────────┬───────────────┬───────────────┘
               │              │               │
               ▼              ▼               ▼
@@ -141,14 +141,15 @@ ASH ships with **30+ high-quality skills**, including:
 
 ## 🌐 Ecosystem Integration
 
-ASH can auto-import skills downloaded via Vercel's `npx skills`:
+ASH and Vercel's `npx skills` share the same universal library, so no import copy is required:
 
 ```bash
 # Download with Vercel's tool
 npx skills add anthropics/skills --skill frontend-design
 
-# Let ASH take over and distribute
-ash sync
+# Preview conflicts, then bridge safely to client-specific roots
+ash doctor
+ash repair --apply
 ```
 
 ---

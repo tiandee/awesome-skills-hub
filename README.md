@@ -28,15 +28,15 @@ Awesome-Skills-Hub (ASH) is a lightweight package manager designed to unify the 
 
 Chinese users can also discover more skills through [Skills宝](https://skilery.com).
 
-Instead of copying and pasting your favorite "Expert Java Developer" prompt into Antigravity, Cursor, Windsurf, and Claude separately, `ash` lets you maintain a single "Source of Truth" in this repository and symlink it to all your tools instantly.
+Instead of copying and pasting your favorite "Expert Java Developer" prompt into Antigravity, Cursor, Windsurf, and Claude separately, `ash` uses the standard `~/.agents/skills` directory as one universal source of truth and safely links selected Skills to client-specific roots.
 
 ## 🚀 Features
 
-- **Dual-Scope Management**: Support both **Global Scope** (`~/.ash/skills`) and **Project Scope** (Project-local).
+- **Dual-Scope Management**: Support both **Global Scope** (`~/.agents/skills`) and **Project Scope** (Project-local).
 - **Universal IDE Bridge**: Automatically compatibilizes with **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot).
-- **Centralized "Homebrew"**: Keep all your prompts in one place, independent of IDE configs.
-- **Live Symlinks**: Updates in the repository immediately reflect in all your connected IDEs.
-- **Ecosystem Integration**: Auto-import skills downloaded via `npx skills` (See [Ecosystem Integration](#-ecosystem-integration)).
+- **Centralized "Homebrew"**: Keep all your prompts in the standard Agents library, independent of client-specific IDE configs.
+- **Live Symlinks**: Updates in the universal library immediately reflect in all connected IDEs.
+- **Ecosystem Integration**: Reuse Skills downloaded via `npx skills` directly, without maintaining a second copy (see [Ecosystem Integration](#-ecosystem-integration)).
 - **Smart Monorepo Discovery**: Interactive UI to scan and install skills from complex repositories (e.g., `huggingface/skills`).
 - **Meta-Skill (Self-Discovery)**: Empower your Agent to autonomously search and install the skills it needs (`ash search` -> `ash add`).
 
@@ -77,7 +77,7 @@ npx askill install pdf
 # 1. Install globally (Unlocks the 'ash' command)
 npm install -g askill
 
-# 2. Initialize environment (Detects IDEs & creates ~/.ash)
+# 2. Initialize environment (Detects IDEs & prepares ~/.agents/skills)
 ash init
 
 # 3. Verify installation (List available skills)
@@ -122,7 +122,7 @@ source ~/.zshrc  # or ~/.bashrc
 
 **The installer will:**
 1. Detect and initialize all mainstream AI IDE environments.
-2. **Setup ASH_HOME**: Create `~/.ash/skills` (or `~\.ash\skills` on Windows) for persistent storage.
+2. **Prepare the universal library**: Add missing bundled Skills to `~/.agents/skills` (or `~\.agents\skills` on Windows) without overwriting existing entries.
 3. Configure environment variables for **Zsh**, **Bash**, and **Fish**.
 4. Enable global `ash` command access instantly.
 
@@ -145,7 +145,7 @@ ash info pdf       # Supports smart name matching
 ```
 
 ### 3. Install a Skill (Global / User Level)
-Link a skill to your **User Home Directory** (`~/.ash/skills`).
+Link a Skill from the universal **Agents library** (`~/.agents/skills`) to detected client directories.
 
 ```bash
 ash add pdf               # Install by name (Global)
@@ -174,7 +174,7 @@ ash add --all -p             # Install ALL skills to project
 
 | Command | Description | Usage Example |
 | :--- | :--- | :--- |
-| **`init`** | **Initialize ASH Environment**. Creates `~/.ash` and prepares built-in skills. | `ash init` |
+| **`init`** | **Initialize ASH Environment**. Prepares `~/.agents/skills`, ASH state, and detected client roots. | `ash init` |
 | **`list`** | **List Available Skills**. Shows names, categories, and paths of all skills. | `ash list` (Alias: `ls`) |
 | **`add`** | **Install & Distribute**. Symlinks skills to IDEs. Supports local names or GitHub URLs. | `ash add <name>`<br>`ash add <GitHub_URL>`<br>`ash add --all` (Install all) |
 | **`info`** | **View Skill Details**. Shows metadata, descriptions, and prompt previews. | `ash info <name>` |
@@ -188,13 +188,15 @@ ash add --all -p             # Install ALL skills to project
 | **`package`** | **Deterministic Packaging**. Builds reproducible `.skill` archives and excludes `.env`. | `ash package pdf`<br>`ash package --all` |
 | **`uninstall`**| **Remove Links**. Removes symlinks from IDEs without deleting source files. | `ash uninstall <name>`<br>`ash uninstall --all` |
 | **`clean`** | **Wipe IDE Directory**. Clears all skill links from one or all IDEs. | `ash clean <ide>`<br>`ash clean --all` |
-| **`sync`** | **Ecosystem Sync**. Import skills from external sources like Vercel/Agents. | `ash sync` |
+| **`sync`** | **Repository Sync**. Pull updates and add only missing bundled Skills to the universal library. | `ash sync` |
 
 ---
 
 ## 🩺 Skill Control Plane and Safe Repair
 
-ASH treats `~/.ash/skills` as its managed library and observes third-party Agents, Codex Store, Codex system, and plugin Skills without taking ownership of them. `~/.agents/skills` is the default universal distribution target; Cursor, Claude, TRAE, and other client-specific roots are reconciled when those clients are detected.
+ASH treats `~/.agents/skills` as the only universal library and activation root. Real directories and top-level Skill symlinks are both supported. Cursor, Claude, TRAE, and other client-specific roots are reconciliation targets; Codex Store, Codex system, and plugin Skills remain read-only external sources. `~/.ash` now stores only control-plane state, catalogs, packages, and recoverable transactions.
+
+On upgrade, a mutating command discovers legacy Skills recursively and copies only missing names into the standard flat layout; existing Agents entries are never overwritten. ASH no longer loads `~/.ash/skills`. Review same-name conflicts before archiving it.
 
 ```bash
 ash inventory             # Inspect every known source and owner
@@ -210,18 +212,19 @@ Repair never overwrites regular files, real directories, or valid links owned by
 ---
 
 ## 🚀 Ecosystem Integration
-**ASH can automatically detect and import skills from the Vercel ecosystem.**
-Vercel's official `npx skills` tool downloads skills to `~/.agents/skills`. ASH can scan this directory and **instantly bridge** those high-quality skills to all your IDEs.
+**ASH directly shares the standard Agents library with the Vercel ecosystem.**
+Vercel's official `npx skills` tool downloads Skills to `~/.agents/skills`. ASH discovers them in place—there is no import copy—and can safely bridge them to your client-specific IDE directories.
 
 1. **Download**: Use Vercel's tool to grab a skill:
    ```bash
    npx skills add user/repo
    ```
-2. **Sync**: Let ASH take over and distribute:
+2. **Audit and bridge**: Preview conflicts, then reconcile safe links:
    ```bash
-   ash sync
+   ash doctor
+   ash repair --apply
    ```
-   *(ASH will prompt you about the new skills found. Once confirmed, they are available in Cursor, Windsurf, etc.)*
+   `repair` skips regular files, real directories, and links owned by another source.
 
 ### 💡 Recommended Resources
 Looking for high-quality skills? Check out **[Skill Hub CN](https://www.skill-cn.com)**.
@@ -287,8 +290,9 @@ npm uninstall -g askill
 ## 📂 System Architecture
 
 - **ASH Home**: `~/.ash` (or `$env:USERPROFILE\.ash`)
-- **Global Skills Hub**: `~/.ash/skills/`
-- **Persistent Links**: All IDE symlinks point to this stable global path.
+- **Universal Skills Library**: `~/.agents/skills/`
+- **ASH State and Outputs**: `~/.ash/state`, `~/.ash/CATALOG.md`, and `~/.ash/packages`
+- **Client Links**: Detected IDE roots link to entries in the universal library.
 
 ## 🧩 UX Highlights
 

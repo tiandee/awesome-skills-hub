@@ -49,10 +49,10 @@ fi
 ASH_BIN="$PROJECT_ROOT/bin/ash"
 chmod +x "$ASH_BIN"
 
-# 3. 初始化全局环境
-log_info "正在初始化全局配置目录 (~/.ash)..."
-mkdir -p "$HOME/.ash/skills"
-cp -r "$PROJECT_ROOT/skills/"* "$HOME/.ash/skills/"
+# 3. 初始化通用 Skill 库
+# bin/ash 会把旧 ~/.ash/skills 中缺失的条目安全补迁到 ~/.agents/skills，
+# 再补充仓库内置 Skill；同名条目一律不覆盖。
+log_info "正在初始化通用 Skill 库 (~/.agents/skills)..."
 "$ASH_BIN" init
 
 # 4. 尝试创建系统软链接 (免 source 方案)

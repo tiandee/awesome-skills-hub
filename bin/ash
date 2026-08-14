@@ -33,7 +33,8 @@ while [ -h "$SOURCE" ]; do
 done
 SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 ASH_HOME="$HOME/.ash"
-SKILLS_DIR="$ASH_HOME/skills"
+SKILLS_DIR="$HOME/.agents/skills"
+LEGACY_SKILLS_DIR="$ASH_HOME/skills"
 
 # Read-only control-plane commands must never trigger first-run initialization.
 CONTROL_PLANE_READ_ONLY=0
@@ -60,34 +61,104 @@ case "${1:-}" in
         ;;
 esac
 
-# Check if global skills exist. If not, initialize them from the package (First Run Logic)
+# Copy discovered Skills into the universal Agents library without overwriting
+# existing entries. Category directories are flattened to the standard
+# ~/.agents/skills/<skill-name>/SKILL.md layout.
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Debug path resolution
 # echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
 # echo "DEBUG: PROJECT_ROOT=$PROJECT_ROOT"
 
-if [ ! -d "$SKILLS_DIR" ] && [ "$CONTROL_PLANE_READ_ONLY" -eq 0 ]; then
+copy_missing_skill_tree() {
+    local source_root="$1"
+    COPIED_SKILLS=0
+    [ -d "$source_root" ] || return 0
+    mkdir -p "$SKILLS_DIR"
+    local skill_file source_item name target_item parent nested
+    while IFS= read -r skill_file; do
+        source_item=$(dirname "$skill_file")
+        parent=$(dirname "$source_item")
+        nested=0
+        while [ "$parent" != "$source_root" ] && [ "$parent" != "/" ]; do
+            if [ -f "$parent/SKILL.md" ]; then
+                nested=1
+                break
+            fi
+            parent=$(dirname "$parent")
+        done
+        [ "$nested" -eq 1 ] && continue
+        name=$(basename "$source_item")
+        target_item="$SKILLS_DIR/$name"
+        if [ -e "$target_item" ] || [ -L "$target_item" ]; then
+            continue
+        fi
+        cp -R "$source_item" "$target_item" || {
+            return 1
+        }
+        COPIED_SKILLS=$((COPIED_SKILLS + 1))
+    done < <(find "$source_root" -type f -name SKILL.md -print | sort)
+
+    shopt -s nullglob
+    for source_item in "$source_root"/*; do
+        if [ ! -L "$source_item" ] || [ ! -f "$source_item/SKILL.md" ]; then
+            continue
+        fi
+        name=$(basename "$source_item")
+        target_item="$SKILLS_DIR/$name"
+        if [ -e "$target_item" ] || [ -L "$target_item" ]; then
+            continue
+        fi
+        mkdir "$target_item" || {
+            shopt -u nullglob
+            return 1
+        }
+        cp -R "$source_item/." "$target_item" || {
+            shopt -u nullglob
+            return 1
+        }
+        COPIED_SKILLS=$((COPIED_SKILLS + 1))
+    done
+    for source_item in "$source_root"/*.md; do
+        name=$(basename "$source_item")
+        [ "$name" = "README.md" ] && continue
+        [ "$name" = "SKILL.md" ] && continue
+        target_item="$SKILLS_DIR/$name"
+        if [ -e "$target_item" ] || [ -L "$target_item" ]; then
+            continue
+        fi
+        cp "$source_item" "$target_item" || {
+            shopt -u nullglob
+            return 1
+        }
+        COPIED_SKILLS=$((COPIED_SKILLS + 1))
+    done
+    shopt -u nullglob
+}
+
+seed_bundled_skills() {
+    copy_missing_skill_tree "$1" || return 1
+    SEEDED_SKILLS=$COPIED_SKILLS
+}
+
+migrate_legacy_skills() {
+    MIGRATED_LEGACY_SKILLS=0
+    [ -d "$LEGACY_SKILLS_DIR" ] || return 0
+    copy_missing_skill_tree "$LEGACY_SKILLS_DIR" || return 1
+    MIGRATED_LEGACY_SKILLS=$COPIED_SKILLS
+    log_warn "检测到旧目录 $LEGACY_SKILLS_DIR；已补迁 $MIGRATED_LEGACY_SKILLS 个缺失技能，现有同名条目未覆盖。"
+    log_warn "确认内容后可归档旧目录；ASH 已不再从该目录加载技能。"
+}
+
+if [ "$CONTROL_PLANE_READ_ONLY" -eq 0 ]; then
     LOCAL_SKILLS="$PROJECT_ROOT/skills"
-    
-    # Check if we can find the skills package
+    migrate_legacy_skills
     if [ -d "$LOCAL_SKILLS" ]; then
-        log_info "首次运行，正在初始化全局环境 (~/.ash)..."
-        log_info "从 $LOCAL_SKILLS 复制技能..."
-        
-        mkdir -p "$SKILLS_DIR"
-        cp -R "$LOCAL_SKILLS/." "$SKILLS_DIR/"
-        
-        if [ -d "$SKILLS_DIR" ]; then
-            log_success "初始化完成！"
-        else
-            log_error "初始化失败：复制操作未能创建目标目录。"
+        seed_bundled_skills "$LOCAL_SKILLS"
+        if [ "$SEEDED_SKILLS" -gt 0 ]; then
+            log_success "已向通用目录 ~/.agents/skills 补充 $SEEDED_SKILLS 个内置技能。"
         fi
     else
-        # Critical Debug Logic: why can't we find the skills?
-        # log_warn "DEBUG: 未在安装包内找到 skills 目录: $LOCAL_SKILLS"
-        # ls -F "$PROJECT_ROOT" # Try to see what IS there
         log_warn "未在安装包内找到 skills 目录: $LOCAL_SKILLS"
-        log_warn "您可能需要运行 'ash sync' 或 'git clone' 来获取技能。"
     fi
 fi
 
@@ -255,6 +326,16 @@ resolve_skill_path() {
 # Returns: Array of valid skill paths (files or folder paths) printed to stdout
 # ------------------------------------------------------------------------------
 get_all_skills() {
+    # Top-level symlinked directory Skills are common in ~/.agents/skills.
+    local linked_skill
+    shopt -s nullglob
+    for linked_skill in "$SKILLS_DIR"/*; do
+        if [ -L "$linked_skill" ] && [ -f "$linked_skill/SKILL.md" ]; then
+            echo "$linked_skill"
+        fi
+    done
+    shopt -u nullglob
+
     while IFS= read -r item; do
         local rel_path="${item#$SKILLS_DIR/}"
         local filename="${rel_path##*/}"
@@ -322,6 +403,8 @@ detect_ide() {
 # ------------------------------------------------------------------------------
 cmd_init() {
     log_info "正在初始化 ASH 环境..."
+    seed_bundled_skills "$PROJECT_ROOT/skills"
+    log_info "通用技能库: $SKILLS_DIR"
     
     # 1. Google Antigravity
     detect_ide "Google Antigravity" "$HOME_DIR/.agent" "" "mkdir -p \"$AGENT_SKILLS_DIR\""
@@ -358,95 +441,17 @@ cmd_sync() {
         log_info "正在从远程仓库拉取更新 ($PROJECT_ROOT)..."
         (cd "$PROJECT_ROOT" && git pull origin main)
         
-        # 2. 同步到全局目录
-        log_info "正在同步到全局主目录 ($SKILLS_DIR)..."
-        cp -r "$PROJECT_ROOT/skills/"* "$SKILLS_DIR/"
+        # 2. Add only missing bundled skills. Existing Agents entries stay authoritative.
+        seed_bundled_skills "$PROJECT_ROOT/skills"
+        log_info "已检查通用目录 $SKILLS_DIR；补充 $SEEDED_SKILLS 个缺失技能，未覆盖现有条目。"
     else
         log_warn "未在项目根目录运行，将跳过本地仓库同步。"
         log_info "如果您想直接从远程同步到全局，请克隆项目并运行 install.sh。"
     fi
     
     log_success "同步完成！您可以运行 'ash list' 查看最新技能。"
-    
-    # --- Vercel Labs Integration ---
-    import_from_vercel
 }
 
-# ------------------------------------------------------------------------------
-# Helper: Import from Vercel/Agents (~/.agents/skills)
-# ------------------------------------------------------------------------------
-import_from_vercel() {
-    local vercel_dir="$HOME/.agents/skills"
-    
-    # 1. Check if Vercel directory exists
-    if [ ! -d "$vercel_dir" ]; then
-        return
-    fi
-    
-    # 2. Find new skills (not present in ~/.ash/skills)
-    local new_skills=()
-    local count=0
-    
-    # Iterate over files/dirs in ~/.agents/skills
-    for item in "$vercel_dir"/*; do
-        [ -e "$item" ] || continue
-        
-        local name=$(basename "$item")
-        
-        # Skip if already exists in ASH (Recursive Shadow Check)
-        if resolve_skill_path "$name" > /dev/null 2>&1; then
-            continue
-        fi
-        
-        new_skills+=("$item")
-        ((count++))
-    done
-    
-    if [ $count -eq 0 ]; then
-        return
-    fi
-    
-    echo ""
-    log_info "🔍 发现来自 Vercel/Agents 生态的新技能 ($count 个):"
-    for item in "${new_skills[@]}"; do
-        echo -e "  ${GREEN}+${NC} $(basename "$item")"
-    done
-    echo ""
-    
-    # 3. Ask for import
-    echo -e "${YELLOW}是否将这些技能导入 ASH 并分发到所有 IDE?${NC}"
-    read -p "确认导入? [Y/n] " confirm
-    if [[ "$confirm" == "n" || "$confirm" == "N" ]]; then
-        echo "已跳过导入。"
-        return
-    fi
-    
-    # 4. Import & Bridge
-    local success_count=0
-    for source in "${new_skills[@]}"; do
-        local name=$(basename "$source")
-        local target="$SKILLS_DIR/$name"
-        
-        # Strategy: Copy (Fork) to own the config
-        cp -r "$source" "$target"
-        
-        if [ $? -eq 0 ]; then
-            log_success "已导入: $name"
-            
-            # Trigger Bridge Engine (Install to all IDEs)
-            install_skill_file "$target" > /dev/null
-            ((success_count++))
-        else
-            log_error "导入失败: $name"
-        fi
-    done
-    
-    if [ $success_count -gt 0 ]; then
-        echo ""
-        log_success "成功导入并分发了 $success_count 个外部技能！"
-        echo -e "提示: 您现在可以使用 ${CYAN}ash info <name>${NC} 来查看它们。"
-    fi
-}
 # ------------------------------------------------------------------------------
 # Command: list
 # ------------------------------------------------------------------------------
@@ -613,8 +618,12 @@ cmd_status() {
     fi
     echo ""
     
-    # 定义 IDE 名称 (供模糊匹配使用)
-    local ide_names=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local library_count=$(get_all_skills | awk 'NF' | wc -l | tr -d ' ')
+    echo -e "  ${GREEN}✓${NC} ${CYAN}Agents Library:${NC} ${GREEN}$library_count${NC} 个技能 ($SKILLS_DIR)"
+    echo ""
+
+    # 定义客户端名称 (通用 Agents 库本身不是可清理的分发目标)
+    local ide_names=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
     local matched_any=0
 
     # Helper to check an IDE dir
@@ -673,7 +682,6 @@ cmd_status() {
     }
 
     check_ide_status "Antigravity" "$AGENT_SKILLS_DIR"
-    check_ide_status "Generic Agents" "$HOME/.agents/skills"
     check_ide_status "Cursor" "$CURSOR_SKILLS_DIR"
     check_ide_status "TRAE" "$TRAE_SKILLS_DIR"
     check_ide_status "Windsurf" "$WINDSURF_SKILLS_DIR"
@@ -696,8 +704,8 @@ cmd_clean() {
     local target="$1"
     
     # 定义 IDE 名称及其对应的路径 (需与 install_skill_file 保持一致)
-    local ide_names=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-    local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    local ide_names=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
     if [ -z "$target" ]; then
         echo -e "用法: ash clean <ide_name> 或 ash clean --all"
@@ -1020,7 +1028,7 @@ download_github_skill() {
         fi
     fi
     
-    # 5. Move to ~/.ash/skills/downloaded/
+    # 5. Move to the universal Agents library under downloaded/.
     local download_root="$SKILLS_DIR/downloaded"
     mkdir -p "$download_root"
     
@@ -1133,8 +1141,8 @@ execute_skill_installation() {
         local count=0
         local updated_ides=() # Use array to store list
         
-        local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-        local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+        local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+        local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
         
         for i in "${!ides[@]}"; do
             local ide_name="${ides[$i]}"
@@ -1288,8 +1296,8 @@ remove_all_links() {
     local total_count=0
     
     # 定义 IDE 名称及其对应的路径
-    local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-    local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
     for i in "${!ides[@]}"; do
         local ide_name="${ides[$i]}"
@@ -1345,8 +1353,8 @@ cmd_uninstall() {
     local removed=0
     
     # 定义 IDE 名称及其对应的路径
-    local ides=("Antigravity" "Generic Agents" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
-    local dirs=("$AGENT_SKILLS_DIR" "$HOME/.agents/skills" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
+    local ides=("Antigravity" "Cursor" "TRAE" "Windsurf" "Copilot" "Claude" "Trae CN")
+    local dirs=("$AGENT_SKILLS_DIR" "$CURSOR_SKILLS_DIR" "$TRAE_SKILLS_DIR" "$WINDSURF_SKILLS_DIR" "$COPILOT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$TRAE_CN_SKILLS_DIR")
     
     for i in "${!ides[@]}"; do
         local ide_name="${ides[$i]}"

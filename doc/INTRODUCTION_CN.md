@@ -29,8 +29,8 @@
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                    ~/.ash/skills/                          │
-│        （你的技能军火库，一处存储，全端链接）                  │
+│                  ~/.agents/skills/                         │
+│        （通用技能库，也是 Agents 标准激活入口）                │
 └─────────────┬──────────────┬───────────────┬───────────────┘
               │              │               │
               ▼              ▼               ▼
@@ -177,8 +177,9 @@ ASH 会自动检测仓库结构，扫描 Monorepo 中的技能并完成安装。
 # 使用 Vercel 工具下载
 npx skills add anthropics/skills --skill frontend-design
 
-# ASH 一键接管并分发
-ash sync
+# 预览冲突，再安全桥接到各客户端目录
+ash doctor
+ash repair --apply
 ```
 
 > 💡 **资源推荐**：想要寻找更多优质的中文 Skill？推荐访问 **[Skill Hub 中国](https://www.skill-cn.com)**

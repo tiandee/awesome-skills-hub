@@ -9,7 +9,8 @@ chcp 65001 | Out-Null
 
 # --- Path Configuration ---
 $ASH_HOME = Join-Path $env:USERPROFILE ".ash"
-$SKILLS_DIR = Join-Path $ASH_HOME "skills"
+$SKILLS_DIR = Join-Path $env:USERPROFILE ".agents\skills"
+$LEGACY_SKILLS_DIR = Join-Path $ASH_HOME "skills"
 $PROJECT_ROOT = Split-Path -Parent $PSScriptRoot
 $VERSION = "1.1.31"
 
@@ -26,23 +27,70 @@ if ($STARTUP_CMD -in @("inventory", "sources", "doctor")) {
     $CONTROL_PLANE_READ_ONLY = $args -contains "--check"
 }
 
-# First Run Logic: initialize global skills from package
-if (-not (Test-Path $SKILLS_DIR) -and -not $CONTROL_PLANE_READ_ONLY) {
+function Copy-MissingSkillTree($SourceRoot, $TargetRoot) {
+    $copied = 0
+    if (-not (Test-Path $SourceRoot)) { return $copied }
+    New-Item -Path $TargetRoot -ItemType Directory -Force | Out-Null
+    $existingNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($existingItem in @(Get-ChildItem -LiteralPath $TargetRoot -Force -ErrorAction SilentlyContinue)) {
+        $existingNames.Add($existingItem.Name) | Out-Null
+    }
+    $sourcePath = (Resolve-Path -LiteralPath $SourceRoot).Path.TrimEnd('\', '/')
+    $skillDirectories = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($sourceItem in @(Get-ChildItem -LiteralPath $SourceRoot -Force -ErrorAction SilentlyContinue)) {
+        if ($sourceItem.Attributes -match "ReparsePoint" -and (Test-Path -LiteralPath (Join-Path $sourceItem.FullName "SKILL.md"))) {
+            $skillDirectories.Add($sourceItem.FullName) | Out-Null
+        }
+    }
+    foreach ($skillFile in @(Get-ChildItem -Path $SourceRoot -Filter "SKILL.md" -Recurse -File -ErrorAction SilentlyContinue)) {
+        $skillDirectory = $skillFile.DirectoryName
+        $ancestor = Split-Path -Parent $skillDirectory
+        $nested = $false
+        while ($ancestor -and $ancestor -ne $sourcePath) {
+            if (Test-Path -LiteralPath (Join-Path $ancestor "SKILL.md")) {
+                $nested = $true
+                break
+            }
+            $ancestor = Split-Path -Parent $ancestor
+        }
+        if (-not $nested) {
+            $skillDirectories.Add($skillDirectory) | Out-Null
+        }
+    }
+    foreach ($skillDirectory in @($skillDirectories | Sort-Object)) {
+        $name = Split-Path $skillDirectory -Leaf
+        if (-not $existingNames.Contains($name)) {
+            Copy-Item -LiteralPath $skillDirectory -Destination (Join-Path $TargetRoot $name) -Recurse
+            $existingNames.Add($name) | Out-Null
+            $copied++
+        }
+    }
+    foreach ($markdownFile in @(Get-ChildItem -LiteralPath $SourceRoot -Filter "*.md" -File -ErrorAction SilentlyContinue)) {
+        if ($markdownFile.Name -ne "README.md" -and $markdownFile.Name -ne "SKILL.md" -and -not $existingNames.Contains($markdownFile.Name)) {
+            Copy-Item -LiteralPath $markdownFile.FullName -Destination (Join-Path $TargetRoot $markdownFile.Name)
+            $existingNames.Add($markdownFile.Name) | Out-Null
+            $copied++
+        }
+    }
+    return $copied
+}
+
+# Initialize the universal Agents library without overwriting existing entries.
+if (-not $CONTROL_PLANE_READ_ONLY) {
+    if (Test-Path $LEGACY_SKILLS_DIR) {
+        $migrated = Copy-MissingSkillTree $LEGACY_SKILLS_DIR $SKILLS_DIR
+        Write-Host "[WARN] Legacy $LEGACY_SKILLS_DIR detected; migrated $migrated missing skill(s) without overwriting existing entries." -ForegroundColor Yellow
+        Write-Host "[WARN] ASH no longer loads the legacy directory; archive it after reviewing conflicts." -ForegroundColor Yellow
+    }
     $LOCAL_SKILLS = Join-Path $PROJECT_ROOT "skills"
-    if (Test-Path $LOCAL_SKILLS) {
-        Write-Host "[INFO] First run, initializing ~/.ash ..." -ForegroundColor Blue
-        New-Item -Path $ASH_HOME -ItemType Directory -Force | Out-Null
-        Copy-Item -Path $LOCAL_SKILLS -Destination $SKILLS_DIR -Recurse -Force
-        Write-Host "[OK] Initialized!" -ForegroundColor Green
-    } else {
-        Write-Host "[WARN] Skills directory not found: $LOCAL_SKILLS" -ForegroundColor Yellow
-        $SKILLS_DIR = $LOCAL_SKILLS
+    $seeded = Copy-MissingSkillTree $LOCAL_SKILLS $SKILLS_DIR
+    if ($seeded -gt 0) {
+        Write-Host "[OK] Added $seeded bundled skill(s) to ~/.agents/skills." -ForegroundColor Green
     }
 }
 
 # --- IDE Target Paths ---
 $AGENT_SKILLS_DIR    = Join-Path $env:USERPROFILE ".agent\skills"
-$AGENTS_SKILLS_DIR   = Join-Path $env:USERPROFILE ".agents\skills"
 $CURSOR_SKILLS_DIR   = Join-Path $env:USERPROFILE ".cursor\skills"
 $TRAE_SKILLS_DIR     = Join-Path $env:USERPROFILE ".trae\skills"
 $TRAE_CN_SKILLS_DIR  = Join-Path $env:USERPROFILE ".trae-cn\skills"
@@ -54,7 +102,6 @@ $CLAUDE_SKILLS_DIR   = Join-Path $env:USERPROFILE ".claude\skills"
 function Get-IdeTargets {
     return @(
         @{ Name = "Antigravity";     Dir = $AGENT_SKILLS_DIR },
-        @{ Name = "Generic Agents";  Dir = $AGENTS_SKILLS_DIR },
         @{ Name = "Cursor";          Dir = $CURSOR_SKILLS_DIR },
         @{ Name = "TRAE";            Dir = $TRAE_SKILLS_DIR },
         @{ Name = "TRAE CN";         Dir = $TRAE_CN_SKILLS_DIR },
@@ -101,13 +148,25 @@ function Get-SkillFiles {
 function Get-AllSkillPaths {
     if (-not (Test-Path $SKILLS_DIR)) { return @() }
     $results = [System.Collections.Generic.List[string]]::new()
-    $folderSkillDirs = [System.Collections.Generic.HashSet[string]]::new()
+    $folderSkillDirs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    # PowerShell does not consistently recurse into directory links. Discover
+    # top-level linked Skills explicitly, matching the Bash and Node front ends.
+    Get-ChildItem -LiteralPath $SKILLS_DIR -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Attributes -match "ReparsePoint" } |
+        ForEach-Object {
+            $skillFile = Join-Path $_.FullName "SKILL.md"
+            if ((Test-Path -LiteralPath $skillFile) -and $folderSkillDirs.Add($_.FullName)) {
+                $results.Add($_.FullName)
+            }
+        }
 
     # Pass 1: Identify all folder skills (directories containing SKILL.md)
     Get-ChildItem -Path $SKILLS_DIR -Filter "SKILL.md" -Recurse -File | ForEach-Object {
         $dir = $_.DirectoryName
-        $folderSkillDirs.Add($dir) | Out-Null
-        $results.Add($dir)
+        if ($folderSkillDirs.Add($dir)) {
+            $results.Add($dir)
+        }
     }
 
     # Pass 2: Collect standalone .md files not nested inside any folder skill
@@ -158,6 +217,8 @@ function Resolve-SkillPath($name) {
     if ($name.EndsWith(".md")) { $name = $name.Substring(0, $name.Length - 3) }
 
     # 1. Check for folder skill (directory containing SKILL.md)
+    $directSkill = Join-Path (Join-Path $SKILLS_DIR $name) "SKILL.md"
+    if (Test-Path -LiteralPath $directSkill) { return $directSkill }
     $folderMatches = @(Get-ChildItem -Path $SKILLS_DIR -Directory -Recurse |
         Where-Object { $_.Name -eq $name -and (Test-Path (Join-Path $_.FullName "SKILL.md")) })
 
@@ -679,61 +740,6 @@ function Install-FromGitHub($repoArg, $skillOption) {
 }
 
 # ==============================================================================
-# Helper: Import from Vercel/Agents (~/.agents/skills)
-# ==============================================================================
-function Import-FromVercel {
-    $vercelDir = $AGENTS_SKILLS_DIR
-    if (-not (Test-Path $vercelDir)) { return }
-
-    # Find new skills not in ~/.ash/skills
-    $newSkills = [System.Collections.Generic.List[string]]::new()
-    $items = Get-ChildItem -Path $vercelDir -ErrorAction SilentlyContinue
-    foreach ($item in $items) {
-        $name = $item.Name
-        # Check if already exists in ASH
-        $existing = Resolve-SkillPath $name
-        if ($null -eq $existing) {
-            $newSkills.Add($item.FullName)
-        }
-    }
-
-    if ($newSkills.Count -eq 0) { return }
-
-    Write-Host ""
-    Write-LogInfo "Discovered $($newSkills.Count) new skill(s) from Vercel/Agents:"
-    foreach ($s in $newSkills) {
-        Write-Host "  ${GREEN}+${NC} $(Split-Path $s -Leaf)"
-    }
-    Write-Host ""
-    Write-Host "${YELLOW}Import these skills into ASH and distribute to all IDEs?${NC}"
-    $confirm = Read-Host "Confirm import? [Y/n]"
-    if ($confirm -eq "n" -or $confirm -eq "N") {
-        Write-Host "Skipped import."
-        return
-    }
-
-    $successCount = 0
-    foreach ($source in $newSkills) {
-        $name = Split-Path $source -Leaf
-        $target = Join-Path $SKILLS_DIR $name
-        try {
-            Copy-Item -Path $source -Destination $target -Recurse -Force -ErrorAction Stop
-            Write-LogSuccess "Imported: $name"
-            Install-SkillToIdes $target | Out-Null
-            $successCount++
-        } catch {
-            Write-LogError "Import failed: $name"
-        }
-    }
-
-    if ($successCount -gt 0) {
-        Write-Host ""
-        Write-LogSuccess "Successfully imported and distributed $successCount skill(s)!"
-        Write-Host "Tip: use ${CYAN}ash info <name>${NC} to view them."
-    }
-}
-
-# ==============================================================================
 # Command: install (full: --all, -p/--project, user/repo, --skill)
 # ==============================================================================
 function Invoke-Install {
@@ -1030,16 +1036,12 @@ function Invoke-Clean($target) {
 }
 
 # ==============================================================================
-# Command: sync (with Vercel import)
+# Command: sync
 # ==============================================================================
 function Invoke-Sync {
     Write-LogInfo "Syncing skills..."
 
-    # Step 1: Detect & import NEW skills from Vercel/Agents (~/.agents/skills)
-    # Must run BEFORE redistribution, otherwise our own copies overwrite new downloads
-    Import-FromVercel
-
-    # Step 2: Git pull + sync source skills to ~/.ash/skills
+    # Step 1: Pull repository updates.
     $gitDir = Join-Path $PROJECT_ROOT ".git"
     if (Test-Path $gitDir) {
         Write-LogInfo "Git repo detected. Pulling latest..."
@@ -1053,19 +1055,17 @@ function Invoke-Sync {
             Pop-Location
         }
 
-        # Sync to global dir
-        Write-LogInfo "Syncing to global directory ($SKILLS_DIR)..."
+        # Add only missing bundled skills. Existing Agents entries stay authoritative.
+        Write-LogInfo "Checking universal library ($SKILLS_DIR)..."
         $localSkills = Join-Path $PROJECT_ROOT "skills"
-        if (Test-Path $localSkills) {
-            Copy-Item -Path (Join-Path $localSkills "*") -Destination $SKILLS_DIR -Recurse -Force
-            Write-LogSuccess "Source skills synced to $SKILLS_DIR"
-        }
+        $seeded = Copy-MissingSkillTree $localSkills $SKILLS_DIR
+        Write-LogSuccess "Added $seeded missing skill(s); existing entries were preserved."
     } else {
         Write-LogWarn "Not in a Git repository. Skipping git sync."
         Write-Host "Tip: Clone the repo and run install.ps1, or use 'npm update -g askill'" -ForegroundColor Cyan
     }
 
-    # Step 3: Re-distribute ALL skills from ~/.ash/skills to every IDE directory
+    # Step 2: Re-distribute all universal-library skills to every IDE directory.
     # (On Windows, copies must be refreshed since symlinks often require admin)
     Write-LogInfo "Re-distributing skills to all IDE directories..."
     $allSkills = Get-AllSkillPaths

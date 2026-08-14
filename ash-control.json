@@ -1,15 +1,10 @@
 {
   "schema_version": 1,
   "library": {
-    "path": "~/.ash/skills",
+    "path": "~/.agents/skills",
     "exclude": []
   },
   "targets": {
-    "generic-agents": {
-      "path": "~/.agents/skills",
-      "skills": ["*"],
-      "enabled": "always"
-    },
     "antigravity": {
       "path": "~/.agent/skills",
       "skills": ["*"],
