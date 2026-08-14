@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.27"
+VERSION="1.1.31"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -35,13 +35,38 @@ SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 ASH_HOME="$HOME/.ash"
 SKILLS_DIR="$ASH_HOME/skills"
 
+# Read-only control-plane commands must never trigger first-run initialization.
+CONTROL_PLANE_READ_ONLY=0
+case "${1:-}" in
+    inventory|sources|doctor)
+        CONTROL_PLANE_READ_ONLY=1
+        ;;
+    repair|rollback)
+        CONTROL_PLANE_READ_ONLY=1
+        for argument in "$@"; do
+            [ "$argument" = "--apply" ] && CONTROL_PLANE_READ_ONLY=0
+        done
+        ;;
+    catalog)
+        CONTROL_PLANE_READ_ONLY=1
+        for argument in "$@"; do
+            [ "$argument" = "--write" ] && CONTROL_PLANE_READ_ONLY=0
+        done
+        ;;
+    package)
+        for argument in "$@"; do
+            [ "$argument" = "--check" ] && CONTROL_PLANE_READ_ONLY=1
+        done
+        ;;
+esac
+
 # Check if global skills exist. If not, initialize them from the package (First Run Logic)
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Debug path resolution
 # echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
 # echo "DEBUG: PROJECT_ROOT=$PROJECT_ROOT"
 
-if [ ! -d "$SKILLS_DIR" ]; then
+if [ ! -d "$SKILLS_DIR" ] && [ "$CONTROL_PLANE_READ_ONLY" -eq 0 ]; then
     LOCAL_SKILLS="$PROJECT_ROOT/skills"
     
     # Check if we can find the skills package
@@ -49,8 +74,8 @@ if [ ! -d "$SKILLS_DIR" ]; then
         log_info "首次运行，正在初始化全局环境 (~/.ash)..."
         log_info "从 $LOCAL_SKILLS 复制技能..."
         
-        mkdir -p "$ASH_HOME"
-        cp -r "$LOCAL_SKILLS" "$SKILLS_DIR"
+        mkdir -p "$SKILLS_DIR"
+        cp -R "$LOCAL_SKILLS/." "$SKILLS_DIR/"
         
         if [ -d "$SKILLS_DIR" ]; then
             log_success "初始化完成！"
@@ -123,6 +148,12 @@ show_help() {
     echo "  info <name>       查看技能的详细描述和内容预览"
     echo "  search <keyword>  根据关键词搜索技能"
     echo "  status            显示已安装的技能"
+    echo "  inventory         统一查看 ASH、Agents、Codex Store、系统及插件技能"
+    echo "  doctor            诊断元数据、链接、锁文件和生成物"
+    echo "  repair            预览安全修复计划 (使用 --apply 执行)"
+    echo "  rollback          预览修复回滚 (使用 --apply 执行)"
+    echo "  catalog           生成或校验统一技能目录"
+    echo "  package           生成确定性的 .skill 包"
     echo "  install <name>    安装技能 (支持 -p 安装到当前项目)"
     echo "  uninstall <name>  卸载技能 (支持 --all 卸载全部)"
     echo "  clean <ide|--all> 清空指定 IDE (或所有) 的技能目录"
@@ -1351,6 +1382,15 @@ cmd_uninstall() {
 # ------------------------------------------------------------------------------
 # Main Dispatch
 # ------------------------------------------------------------------------------
+run_control_plane() {
+    if ! command -v node >/dev/null 2>&1; then
+        log_error "控制面命令需要 Node.js 12 或更高版本。"
+        return 2
+    fi
+    ASH_PROJECT_ROOT="$PROJECT_ROOT" ASH_SKILLS_DIR="$SKILLS_DIR" \
+        node "$PROJECT_ROOT/bin/ash-control.js" "$@"
+}
+
 case "$1" in
     init)
         cmd_init
@@ -1369,6 +1409,9 @@ case "$1" in
     status)
         shift
         cmd_status "$@"
+        ;;
+    inventory|sources|doctor|repair|rollback|catalog|package)
+        run_control_plane "$@"
         ;;
     "install"|"add")
         shift

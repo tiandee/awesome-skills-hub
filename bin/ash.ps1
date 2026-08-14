@@ -1,6 +1,6 @@
 # ash.ps1 - Awesome Skills Hub CLI for Windows
 # A PowerShell implementation for managing AI IDE skills.
-# Version: 1.1.30
+# Version: 1.1.31
 
 # --- Encoding Setup ---
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -11,10 +11,23 @@ chcp 65001 | Out-Null
 $ASH_HOME = Join-Path $env:USERPROFILE ".ash"
 $SKILLS_DIR = Join-Path $ASH_HOME "skills"
 $PROJECT_ROOT = Split-Path -Parent $PSScriptRoot
-$VERSION = "1.1.30"
+$VERSION = "1.1.31"
+
+# Read-only control-plane commands must never trigger first-run initialization.
+$STARTUP_CMD = if ($args.Count -gt 0) { $args[0] } else { "" }
+$CONTROL_PLANE_READ_ONLY = $false
+if ($STARTUP_CMD -in @("inventory", "sources", "doctor")) {
+    $CONTROL_PLANE_READ_ONLY = $true
+} elseif ($STARTUP_CMD -in @("repair", "rollback")) {
+    $CONTROL_PLANE_READ_ONLY = -not ($args -contains "--apply")
+} elseif ($STARTUP_CMD -eq "catalog") {
+    $CONTROL_PLANE_READ_ONLY = -not ($args -contains "--write")
+} elseif ($STARTUP_CMD -eq "package") {
+    $CONTROL_PLANE_READ_ONLY = $args -contains "--check"
+}
 
 # First Run Logic: initialize global skills from package
-if (-not (Test-Path $SKILLS_DIR)) {
+if (-not (Test-Path $SKILLS_DIR) -and -not $CONTROL_PLANE_READ_ONLY) {
     $LOCAL_SKILLS = Join-Path $PROJECT_ROOT "skills"
     if (Test-Path $LOCAL_SKILLS) {
         Write-Host "[INFO] First run, initializing ~/.ash ..." -ForegroundColor Blue
@@ -222,6 +235,12 @@ function Show-Help {
     Write-Host "  info <name>       Show skill details and preview"
     Write-Host "  search <keyword>  Search skills by keyword"
     Write-Host "  status            Show installed skills status (supports --full, <ide>)"
+    Write-Host "  inventory         List ASH, Agents, Codex Store, system, and plugin skills"
+    Write-Host "  doctor            Audit metadata, links, locks, and generated artifacts"
+    Write-Host "  repair            Preview safe repairs (use --apply to execute)"
+    Write-Host "  rollback          Preview a repair rollback (use --apply to execute)"
+    Write-Host "  catalog           Generate or verify the unified Skill catalog"
+    Write-Host "  package           Build deterministic .skill archives"
     Write-Host "  install <name>    Install skill (supports --all, -p, user/repo)"
     Write-Host "  uninstall <name>  Uninstall skill (supports --all)"
     Write-Host "  clean <ide|--all> Remove all skill links from IDE(s)"
@@ -1103,6 +1122,24 @@ function Invoke-DidYouMean($cmd) {
 # ==============================================================================
 # Entry Point (enhanced argument parsing)
 # ==============================================================================
+function Invoke-ControlPlane($Command, [string[]]$AllArgs) {
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $node) {
+        Write-LogError "Control-plane commands require Node.js 12 or newer."
+        $script:ControlPlaneExitCode = 2
+        return
+    }
+    $controlScript = Join-Path $PROJECT_ROOT "bin\ash-control.js"
+    $previousSkillsDir = $env:ASH_SKILLS_DIR
+    try {
+        $env:ASH_SKILLS_DIR = $SKILLS_DIR
+        & $node.Source $controlScript $Command @AllArgs
+        $script:ControlPlaneExitCode = $LASTEXITCODE
+    } finally {
+        $env:ASH_SKILLS_DIR = $previousSkillsDir
+    }
+}
+
 $cmd = $args[0]
 $restArgs = @()
 if ($args.Count -gt 1) {
@@ -1118,6 +1155,13 @@ switch ($cmd) {
     "uninstall" { Invoke-Uninstall $param }
     "search"    { Invoke-Search $param }
     "status"    { Invoke-Status -AllArgs $restArgs }
+    "inventory" { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
+    "sources"   { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
+    "doctor"    { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
+    "repair"    { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
+    "rollback"  { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
+    "catalog"   { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
+    "package"   { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
     "sync"      { Invoke-Sync }
     "init"      { Invoke-Init }
     "clean"     { Invoke-Clean $param }

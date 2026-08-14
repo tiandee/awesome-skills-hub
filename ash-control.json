@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "library": {
+    "path": "~/.ash/skills",
+    "exclude": []
+  },
+  "targets": {
+    "generic-agents": {
+      "path": "~/.agents/skills",
+      "skills": ["*"],
+      "enabled": "always"
+    },
+    "antigravity": {
+      "path": "~/.agent/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    },
+    "cursor": {
+      "path": "~/.cursor/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    },
+    "trae": {
+      "path": "~/.trae/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    },
+    "trae-cn": {
+      "path": "~/.trae-cn/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    },
+    "windsurf": {
+      "path": "~/.windsurf/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    },
+    "copilot": {
+      "path": "~/.copilot/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    },
+    "claude": {
+      "path": "~/.claude/skills",
+      "skills": ["*"],
+      "enabled": "detected"
+    }
+  },
+  "sources": {
+    "agents_lock": "~/.agents/.skill-lock.json",
+    "codex_root": "~/.codex/skills",
+    "codex_store_lock": "~/.codex/skills/.skills_store_lock.json",
+    "plugin_cache": "~/.codex/plugins/cache"
+  },
+  "output": {
+    "state_dir": "~/.ash/state/control-plane",
+    "catalog": "~/.ash/CATALOG.md",
+    "packages": "~/.ash/packages"
+  }
+}

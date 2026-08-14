@@ -180,9 +180,32 @@ ash add --all -p             # Install ALL skills to project
 | **`info`** | **View Skill Details**. Shows metadata, descriptions, and prompt previews. | `ash info <name>` |
 | **`search`** | **Search Skills**. Search through names and descriptions using keywords. | `ash search <keyword>` |
 | **`status`** | **Check Deployment**. Shows skill counts per IDE. Supports detailed IDE mapping. | `ash status`<br>`ash status --full`<br>`ash status cursor` |
+| **`inventory`** | **Unified Inventory**. Aggregates ASH, Agents lock, Codex Store, system, and plugin Skills. | `ash inventory`<br>`ash inventory --json` |
+| **`doctor`** | **Health Audit**. Checks metadata, links, locks, ownership conflicts, and generated artifacts. | `ash doctor`<br>`ash doctor --verbose` |
+| **`repair`** | **Safe One-click Repair**. Dry-runs by default; `--apply` only reconciles deterministic ASH-owned state. | `ash repair`<br>`ash repair --apply` |
+| **`rollback`** | **Transaction Rollback**. Validates link targets and file hashes before restoring anything. | `ash rollback latest`<br>`ash rollback latest --apply` |
+| **`catalog`** | **Generate Catalog**. Print, verify, or write the local ASH Skill catalog. | `ash catalog`<br>`ash catalog --write` |
+| **`package`** | **Deterministic Packaging**. Builds reproducible `.skill` archives and excludes `.env`. | `ash package pdf`<br>`ash package --all` |
 | **`uninstall`**| **Remove Links**. Removes symlinks from IDEs without deleting source files. | `ash uninstall <name>`<br>`ash uninstall --all` |
 | **`clean`** | **Wipe IDE Directory**. Clears all skill links from one or all IDEs. | `ash clean <ide>`<br>`ash clean --all` |
 | **`sync`** | **Ecosystem Sync**. Import skills from external sources like Vercel/Agents. | `ash sync` |
+
+---
+
+## 🩺 Skill Control Plane and Safe Repair
+
+ASH treats `~/.ash/skills` as its managed library and observes third-party Agents, Codex Store, Codex system, and plugin Skills without taking ownership of them. `~/.agents/skills` is the default universal distribution target; Cursor, Claude, TRAE, and other client-specific roots are reconciled when those clients are detected.
+
+```bash
+ash inventory             # Inspect every known source and owner
+ash doctor                # Read-only audit, including on first run
+ash repair                # Preview deterministic safe actions
+ash repair --apply        # Apply actions and record a rollback transaction
+ash rollback latest       # Preview the latest rollback
+ash rollback latest --apply
+```
+
+Repair never overwrites regular files, real directories, or valid links owned by another source. It also never modifies Codex Store, system Skills, or plugin caches. Configure sources, targets, and outputs in [`ash-control.json`](ash-control.json); see [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md) for the complete design.
 
 ---
 

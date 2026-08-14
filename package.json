@@ -8,7 +8,7 @@
         "askill": "bin/ash-wrapper.js"
     },
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "node tests/control-plane.test.js"
     },
     "repository": {
         "type": "git",
@@ -31,7 +31,10 @@
     "homepage": "https://github.com/tiandee/awesome-skills-hub#readme",
     "files": [
         "bin",
+        "lib",
+        "doc",
         "skills",
+        "ash-control.json",
         "install.sh",
         "install.ps1",
         "LICENSE",

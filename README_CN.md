@@ -172,9 +172,32 @@ ash add --all -p             # 将所有技能批量注入当前项目
 | **`info`** | **查看技能详情**。显示技能的元数据、描述以及核心 Prompt 的预览。 | `ash info <技能名>` |
 | **`search`** | **搜索技能**。在技能名称和描述中通过关键词检索。 | `ash search <关键词>` |
 | **`status`** | **查看部署状态**。显示各 IDE 已安装的技能总数。支持查看特定 IDE 的详细映射。 | `ash status`<br>`ash status --full`<br>`ash status cursor` |
+| **`inventory`** | **统一资产视图**。聚合 ASH、Agents 锁文件、Codex Store、系统及插件 Skill。 | `ash inventory`<br>`ash inventory --json` |
+| **`doctor`** | **健康检查**。检查元数据、链接、锁文件、所有权冲突和生成物。 | `ash doctor`<br>`ash doctor --verbose` |
+| **`repair`** | **安全一键修复**。默认仅预览；`--apply` 后只补齐缺失/断裂的 ASH 链接并记录事务。 | `ash repair`<br>`ash repair --apply` |
+| **`rollback`** | **事务回滚**。默认预览；回滚前验证链接目标与文件哈希，避免覆盖后续修改。 | `ash rollback latest`<br>`ash rollback latest --apply` |
+| **`catalog`** | **生成统一目录**。输出、校验或写入本机 ASH Skill 目录。 | `ash catalog`<br>`ash catalog --write` |
+| **`package`** | **确定性打包**。生成内容可复现的 `.skill` 包，并自动排除 `.env`。 | `ash package pdf`<br>`ash package --all` |
 | **`uninstall`** | **移除技能链接**。从各 IDE 的技能目录中通过软链接移除指定技能（不删源文件）。 | `ash uninstall <技能名>`<br>`ash uninstall --all` |
 | **`clean`** | **清空 IDE 目录**。一键清空某个 IDE 或所有 IDE 下的所有技能链接。 | `ash clean <ide_name>`<br>`ash clean --all` |
 | **`sync`** | **生态同步**。扫描 Vercel/Agents 等外部生态的技能目录并导入到 ASH 体系中。 | `ash sync` |
+
+---
+
+## 🩺 Skill 控制面与一键修复
+
+ASH 现在把 `~/.ash/skills` 作为自身管理的技能库，同时只读聚合第三方 Agents、Codex Store、Codex 系统和插件 Skill。`~/.agents/skills` 是默认的通用分发入口；Cursor、Claude、TRAE 等目录在检测到对应客户端后分别纳入检查，并不是只有 `.agents/skills` 才能生效。
+
+```bash
+ash inventory             # 查看所有来源和所有权
+ash doctor                # 只读诊断；首次运行也不会创建目录
+ash repair                # 预览确定性修复计划
+ash repair --apply        # 执行安全动作并保存回滚事务
+ash rollback latest       # 预览最近一次回滚
+ash rollback latest --apply
+```
+
+修复器不会覆盖普通文件、实体目录、其他来源的有效软链接，也不会修改 Codex Store、系统 Skill 或插件缓存。来源、目标和输出位置可以在 [`ash-control.json`](ash-control.json) 中配置。完整设计见 [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md)。
 
 ---
 
