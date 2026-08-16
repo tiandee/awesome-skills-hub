@@ -42,7 +42,8 @@
     }
   },
   "policies": {
-    "codex_user_skills": "migrate-to-agents"
+    "codex_user_skills": "migrate-to-agents",
+    "codex_global_guidance": "manage"
   },
   "sources": {
     "agents_lock": "~/.agents/.skill-lock.json",

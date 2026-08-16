@@ -1,6 +1,6 @@
 # ash.ps1 - Awesome Skills Hub CLI for Windows
 # A PowerShell implementation for managing AI IDE skills.
-# Version: 1.1.31
+# Version: 1.1.32
 
 # --- Encoding Setup ---
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -12,12 +12,12 @@ $ASH_HOME = Join-Path $env:USERPROFILE ".ash"
 $SKILLS_DIR = Join-Path $env:USERPROFILE ".agents\skills"
 $LEGACY_SKILLS_DIR = Join-Path $ASH_HOME "skills"
 $PROJECT_ROOT = Split-Path -Parent $PSScriptRoot
-$VERSION = "1.1.31"
+$VERSION = "1.1.32"
 
 # Read-only control-plane commands must never trigger first-run initialization.
 $STARTUP_CMD = if ($args.Count -gt 0) { $args[0] } else { "" }
 $CONTROL_PLANE_READ_ONLY = $false
-if ($STARTUP_CMD -in @("inventory", "sources", "doctor")) {
+if ($STARTUP_CMD -in @("", "-v", "--version", "-h", "--help", "help", "inventory", "sources", "doctor")) {
     $CONTROL_PLANE_READ_ONLY = $true
 } elseif ($STARTUP_CMD -in @("repair", "rollback")) {
     $CONTROL_PLANE_READ_ONLY = -not ($args -contains "--apply")
@@ -296,6 +296,7 @@ function Show-Help {
     Write-Host "  info <name>       Show skill details and preview"
     Write-Host "  search <keyword>  Search skills by keyword"
     Write-Host "  status            Show installed skills status (supports --full, <ide>)"
+    Write-Host "  create <name>     Scaffold a standard Skill in ~/.agents/skills"
     Write-Host "  inventory         List ASH, Agents, Codex Store, system, and plugin skills"
     Write-Host "  doctor            Audit metadata, links, locks, and generated artifacts"
     Write-Host "  repair            Preview safe repairs (use --apply to execute)"
@@ -1155,6 +1156,7 @@ switch ($cmd) {
     "uninstall" { Invoke-Uninstall $param }
     "search"    { Invoke-Search $param }
     "status"    { Invoke-Status -AllArgs $restArgs }
+    "create"    { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
     "inventory" { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
     "sources"   { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }
     "doctor"    { Invoke-ControlPlane -Command $cmd -AllArgs $restArgs; exit $script:ControlPlaneExitCode }

@@ -21,6 +21,7 @@ It answers four questions:
 | Codex system | `~/.codex/skills/.system` | Observe only |
 | Codex plugins | `~/.codex/plugins/cache/**/skills` | Observe only |
 | Unknown Codex-root installs | Present directly under `~/.codex/skills` without an ownership record | Report by default; optionally migrate into Agents |
+| Codex global instructions | `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`) | Manage only the marker-delimited ASH guidance block when explicitly enabled |
 
 When separately configured roots claim the same name, `doctor` reports `MULTIPLE_MANAGERS`; `repair` never chooses an owner automatically.
 
@@ -31,6 +32,14 @@ The default project configuration sets `policies.codex_user_skills` to `migrate-
 Migration removes the corresponding Store lock entry, preserves matching Agents aliases, updates client links and the generated catalog, and records every change in the repair transaction. Rollback restores both the original directory and Store metadata. A real directory, unrelated link, invalid Skill name, or duplicate owner at the destination is a hard conflict and is never overwritten.
 
 Set the policy to `observe` to retain the previous read-only Store behavior. Codex `.system` Skills and plugin-cache Skills are always excluded because their lifecycle belongs to Codex or the plugin manager.
+
+## Codex creation guidance
+
+The default configuration sets `policies.codex_global_guidance` to `manage`. `doctor` then checks whether Codex has a global instruction telling it to use the universal Agents library, and `repair` can append or refresh one marker-delimited ASH block in `$CODEX_HOME/AGENTS.md`. Existing instructions outside that block are preserved byte-for-byte, and every write is covered by the normal repair transaction and rollback checks.
+
+If a non-empty `$CODEX_HOME/AGENTS.override.md` exists, ASH reports that it shadows `AGENTS.md` and refuses to write. Malformed or duplicate ASH markers, symlinks, directories, and other non-regular `AGENTS.md` paths are hard conflicts and are never overwritten. Set the policy to `observe` to disable both diagnosis and repair.
+
+Codex loads global instructions when a task starts, so open a new task after applying the guidance. The guidance tells Codex to treat `~/.agents/skills` as the user's selected location for non-system, non-plugin Skills and to initialize them through `ash create`.
 
 ## Target activation
 
@@ -47,10 +56,13 @@ Targets, inclusion lists, sources, and outputs are declared in `ash-control.json
 ## Commands
 
 ```text
+ash create <name> [--description TEXT] create a standard Skill scaffold in ~/.agents/skills
 ash inventory                       unified asset view
 ash doctor                          read-only health audit
 ash repair                          safe dry-run plan
 ash repair --apply                  execute the plan and record a transaction
+ash repair --scope codex-guidance   preview only the global Codex guidance repair
+ash repair --scope codex-guidance --apply
 ash rollback latest                 preview rollback
 ash rollback latest --apply         apply rollback after full preflight
 ash catalog --check|--write         verify or write the generated catalog
@@ -64,6 +76,8 @@ ash package <name>|--all            build deterministic .skill archives
 - `2`: configuration, metadata, or ownership conflicts exist.
 
 Read-only control-plane commands do not trigger ASH first-run initialization.
+
+`ash create` rejects invalid or occupied names and never overwrites an existing Skill. It creates the required `SKILL.md` plus recommended `agents/openai.yaml`; finish the domain workflow and verify both files before considering the Skill complete.
 
 ## Legacy migration
 
@@ -79,7 +93,7 @@ Mutating Bash and PowerShell commands detect legacy `~/.ash/skills`, recursively
 4. Migrate opted-in Codex user Skills and update their Store lock entries.
 5. Create missing target directories and ASH-owned links.
 6. Atomically replace only broken links that still match the previewed target.
-7. Update the generated catalog.
+7. Update the generated catalog and the opted-in Codex guidance block.
 8. Persist progress after every operation.
 9. Automatically roll back completed operations if a later operation fails.
 10. Run a post-repair health audit.
@@ -102,4 +116,6 @@ The control plane deliberately does not:
 - rewrite `SKILL.md` business instructions;
 - mutate Codex system or plugin resources;
 - mutate Codex Store resources unless `codex_user_skills` explicitly opts into migration;
+- rewrite user-authored content outside the ASH markers in Codex `AGENTS.md`;
+- edit a shadowing `AGENTS.override.md`;
 - force-resolve multiple-manager conflicts.

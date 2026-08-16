@@ -172,6 +172,7 @@ ash add --all -p             # 将所有技能批量注入当前项目
 | **`info`** | **查看技能详情**。显示技能的元数据、描述以及核心 Prompt 的预览。 | `ash info <技能名>` |
 | **`search`** | **搜索技能**。在技能名称和描述中通过关键词检索。 | `ash search <关键词>` |
 | **`status`** | **查看部署状态**。显示各 IDE 已安装的技能总数。支持查看特定 IDE 的详细映射。 | `ash status`<br>`ash status --full`<br>`ash status cursor` |
+| **`create`** | **创建用户 Skill**。直接在通用 Agents 库中生成 `SKILL.md` 与 `agents/openai.yaml` 标准脚手架。 | `ash create review-release --description "审查发布就绪度与证据。"` |
 | **`inventory`** | **统一资产视图**。聚合 ASH、Agents 锁文件、Codex Store、系统及插件 Skill。 | `ash inventory`<br>`ash inventory --json` |
 | **`doctor`** | **健康检查**。检查元数据、链接、锁文件、所有权冲突和生成物。 | `ash doctor`<br>`ash doctor --verbose` |
 | **`repair`** | **安全一键修复**。默认仅预览；`--apply` 后修复确定性链接、执行已启用的 Codex 用户 Skill 迁移并记录事务。 | `ash repair`<br>`ash repair --apply` |
@@ -186,20 +187,23 @@ ash add --all -p             # 将所有技能批量注入当前项目
 
 ## 🩺 Skill 控制面与一键修复
 
-ASH 现在把 `~/.agents/skills` 作为唯一的通用技能库和标准激活入口，既支持实体目录，也支持顶层 Skill 软链接。Cursor、Claude、TRAE 等客户端目录是分发目标。默认策略会把 Codex Store 和手工安装的用户 Skill 事务化迁入 Agents；Codex 系统和插件 Skill 仍保持只读聚合。`~/.ash` 只保存控制面状态、目录、安装包和可回滚事务。
+ASH 现在把 `~/.agents/skills` 作为唯一的通用技能库和标准激活入口，既支持实体目录，也支持顶层 Skill 软链接。Cursor、Claude、TRAE 等客户端目录是分发目标。默认策略会把 Codex Store 和手工安装的用户 Skill 事务化迁入 Agents；Codex 系统和插件 Skill 仍保持只读聚合。ASH 还可以只维护 `$CODEX_HOME/AGENTS.md` 中带 marker 的一小段规则，让新 Codex 任务通过 ASH 创建用户 Skill。`~/.ash` 只保存控制面状态、目录、安装包和可回滚事务。
 
 升级时，写操作会递归发现旧 `~/.ash/skills` 中的 Skill，并只把缺失名称补迁为标准扁平布局，绝不覆盖已有同名条目；ASH 已不再从旧目录加载。处理完同名冲突后即可归档旧目录。
 
 ```bash
 ash inventory             # 查看所有来源和所有权
+ash create my-skill --description "说明用途以及何时触发"
 ash doctor                # 只读诊断；首次运行也不会创建目录
 ash repair                # 预览确定性修复计划
 ash repair --apply        # 执行安全动作并保存回滚事务
+ash repair --scope codex-guidance          # 只预览 AGENTS.md 引导
+ash repair --scope codex-guidance --apply  # 不处理其他分发目标
 ash rollback latest       # 预览最近一次回滚
 ash rollback latest --apply
 ```
 
-修复器不会覆盖普通文件、实体目录或其他来源的有效软链接。当 `policies.codex_user_skills` 为 `migrate-to-agents` 时，它只迁移 Codex 根目录中的用户 Skill、注销对应 Store 记录并保存可回滚事务；Codex `.system` 与插件缓存永不迁移。策略、来源、目标和输出位置可以在 [`ash-control.json`](ash-control.json) 中配置。完整设计见 [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md)。
+修复器不会覆盖普通文件、实体目录或其他来源的有效软链接。当 `policies.codex_user_skills` 为 `migrate-to-agents` 时，它只迁移 Codex 根目录中的用户 Skill、注销对应 Store 记录并保存可回滚事务；当 `policies.codex_global_guidance` 为 `manage` 时，它只更新 Codex `AGENTS.md` 中属于 ASH 的 marker 区块，存在非空 `AGENTS.override.md` 时拒绝修复。Codex `.system` 与插件缓存永不迁移。策略、来源、目标和输出位置可以在 [`ash-control.json`](ash-control.json) 中配置。完整设计见 [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md)。
 
 ---
 

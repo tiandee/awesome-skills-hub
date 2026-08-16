@@ -8,7 +8,7 @@
 # Version: 1.0.0
 # ==============================================================================
 
-VERSION="1.1.31"
+VERSION="1.1.32"
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -39,7 +39,7 @@ LEGACY_SKILLS_DIR="$ASH_HOME/skills"
 # Read-only control-plane commands must never trigger first-run initialization.
 CONTROL_PLANE_READ_ONLY=0
 case "${1:-}" in
-    inventory|sources|doctor)
+    ""|-v|--version|-h|--help|help|inventory|sources|doctor)
         CONTROL_PLANE_READ_ONLY=1
         ;;
     repair|rollback)
@@ -219,6 +219,7 @@ show_help() {
     echo "  info <name>       查看技能的详细描述和内容预览"
     echo "  search <keyword>  根据关键词搜索技能"
     echo "  status            显示已安装的技能"
+    echo "  create <name>     在 ~/.agents/skills 创建标准 Skill 脚手架"
     echo "  inventory         统一查看 ASH、Agents、Codex Store、系统及插件技能"
     echo "  doctor            诊断元数据、链接、锁文件和生成物"
     echo "  repair            预览安全修复计划 (使用 --apply 执行)"
@@ -1418,7 +1419,7 @@ case "$1" in
         shift
         cmd_status "$@"
         ;;
-    inventory|sources|doctor|repair|rollback|catalog|package)
+    create|inventory|sources|doctor|repair|rollback|catalog|package)
         run_control_plane "$@"
         ;;
     "install"|"add")

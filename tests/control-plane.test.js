@@ -317,6 +317,177 @@ test('CLI JSON inventory uses the selected configuration', function run() {
   });
 });
 
+test('ash create scaffolds a standard Skill in the universal Agents library', function run() {
+  withFixture(function inspect(current) {
+    let output = '';
+    let errors = '';
+    const exitCode = controlPlane.main([
+      '--config', current.configPath,
+      '--home', current.root,
+      'create', 'review-release',
+      '--description', 'Review release readiness and verify required evidence.',
+    ], {
+      projectRoot: current.root,
+      env: { HOME: current.root },
+      stdout: { write: function write(value) { output += value; } },
+      stderr: { write: function write(value) { errors += value; } },
+    });
+    assert.strictEqual(exitCode, 0, errors);
+    const created = path.join(current.library, 'review-release');
+    const parsed = controlPlane.parseSkill(created, 'review-release');
+    assert.strictEqual(parsed.declaredName, 'review-release');
+    assert.strictEqual(parsed.description, 'Review release readiness and verify required evidence.');
+    const metadata = fs.readFileSync(path.join(created, 'agents', 'openai.yaml'), 'utf8');
+    assert(metadata.includes('display_name: "Review Release"'));
+    assert(metadata.includes('default_prompt: "Use $review-release to complete this workflow."'));
+    assert(output.includes('Created Skill scaffold: ' + created));
+
+    let duplicateErrors = '';
+    const duplicateCode = controlPlane.main([
+      '--config', current.configPath,
+      '--home', current.root,
+      'create', 'review-release',
+    ], {
+      projectRoot: current.root,
+      env: { HOME: current.root },
+      stdout: { write: function write() {} },
+      stderr: { write: function write(value) { duplicateErrors += value; } },
+    });
+    assert.strictEqual(duplicateCode, 2);
+    assert(duplicateErrors.includes('Skill already exists'));
+  });
+});
+
+test('ash create rejects invalid Skill names without creating partial files', function run() {
+  withFixture(function inspect(current) {
+    let errors = '';
+    const exitCode = controlPlane.main([
+      '--config', current.configPath,
+      '--home', current.root,
+      'create', 'Bad_Name',
+    ], {
+      projectRoot: current.root,
+      env: { HOME: current.root },
+      stdout: { write: function write() {} },
+      stderr: { write: function write(value) { errors += value; } },
+    });
+    assert.strictEqual(exitCode, 2);
+    assert(errors.includes('lowercase letters'));
+    assert.strictEqual(controlPlane.lexists(path.join(current.library, 'Bad_Name')), false);
+
+    errors = '';
+    const descriptionCode = controlPlane.main([
+      '--config', current.configPath,
+      '--home', current.root,
+      'create', 'valid-name',
+      '--description', 'Use for <placeholder> tasks.',
+    ], {
+      projectRoot: current.root,
+      env: { HOME: current.root },
+      stdout: { write: function write() {} },
+      stderr: { write: function write(value) { errors += value; } },
+    });
+    assert.strictEqual(descriptionCode, 2);
+    assert(errors.includes('angle brackets'));
+    assert.strictEqual(controlPlane.lexists(path.join(current.library, 'valid-name')), false);
+  });
+});
+
+test('Codex guidance repair writes only its managed block and restores an empty file', function run() {
+  withFixture(function inspect(current) {
+    const settings = Object.assign({}, current.settings, {
+      codexGlobalGuidancePolicy: 'manage',
+    });
+    fs.mkdirSync(path.dirname(settings.codexAgentsFile), { recursive: true });
+    fs.writeFileSync(settings.codexAgentsFile, '', 'utf8');
+    assert(controlPlane.runDoctor(settings).some(function missing(item) {
+      return item.code === 'CODEX_ASH_GUIDANCE_MISSING';
+    }));
+
+    const plan = controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' });
+    assert.strictEqual(plan.actions.length, 1);
+    assert.strictEqual(plan.actions[0].scope, 'codex-guidance');
+    assert.strictEqual(plan.conflicts.length, 0);
+    const transaction = controlPlane.applyRepair(settings, plan);
+    assert.strictEqual(
+      fs.readFileSync(settings.codexAgentsFile, 'utf8'),
+      controlPlane.MANAGED_BLOCK + '\n',
+    );
+    assert.strictEqual(controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' }).actions.length, 0);
+
+    controlPlane.applyRollback(settings, path.basename(path.dirname(transaction)));
+    assert.strictEqual(fs.readFileSync(settings.codexAgentsFile, 'utf8'), '');
+  });
+});
+
+test('Codex guidance preserves personal instructions and refreshes only the managed block', function run() {
+  withFixture(function inspect(current) {
+    const settings = Object.assign({}, current.settings, {
+      codexGlobalGuidancePolicy: 'manage',
+    });
+    fs.mkdirSync(path.dirname(settings.codexAgentsFile), { recursive: true });
+    const personal = '# Personal instructions\n\nKeep this exact text.\n';
+    fs.writeFileSync(settings.codexAgentsFile, personal, 'utf8');
+    controlPlane.applyRepair(
+      settings,
+      controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' }),
+    );
+    let content = fs.readFileSync(settings.codexAgentsFile, 'utf8');
+    assert(content.indexOf(personal) === 0);
+    assert(content.includes(controlPlane.MANAGED_BLOCK));
+
+    content = content.replace('Never modify Codex', 'Do not change Codex');
+    fs.writeFileSync(settings.codexAgentsFile, content, 'utf8');
+    assert(controlPlane.codexGuidanceIssues(settings).some(function stale(item) {
+      return item.code === 'CODEX_ASH_GUIDANCE_STALE';
+    }));
+    controlPlane.applyRepair(
+      settings,
+      controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' }),
+    );
+    const refreshed = fs.readFileSync(settings.codexAgentsFile, 'utf8');
+    assert(refreshed.indexOf(personal) === 0);
+    assert(refreshed.includes(controlPlane.MANAGED_BLOCK));
+    assert.strictEqual(refreshed.includes('Do not change Codex'), false);
+  });
+});
+
+test('Codex guidance refuses malformed markers and a shadowing override', function run() {
+  withFixture(function inspect(current) {
+    const settings = Object.assign({}, current.settings, {
+      codexGlobalGuidancePolicy: 'manage',
+    });
+    fs.mkdirSync(path.dirname(settings.codexAgentsFile), { recursive: true });
+    fs.writeFileSync(settings.codexAgentsFile, controlPlane.START_MARKER + '\npartial\n', 'utf8');
+    let plan = controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' });
+    assert.strictEqual(plan.actions.length, 0);
+    assert(plan.conflicts.some(function malformed(item) {
+      return item.code === 'CODEX_ASH_GUIDANCE_MALFORMED';
+    }));
+
+    fs.writeFileSync(settings.codexAgentsFile, '', 'utf8');
+    fs.writeFileSync(settings.codexAgentsOverrideFile, '# Override\n', 'utf8');
+    plan = controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' });
+    assert.strictEqual(plan.actions.length, 0);
+    assert(plan.conflicts.some(function shadowed(item) {
+      return item.code === 'CODEX_AGENTS_OVERRIDE_SHADOWS_ASH';
+    }));
+    assert.strictEqual(fs.readFileSync(settings.codexAgentsFile, 'utf8'), '');
+  });
+});
+
+test('scoped Codex guidance repair does not require or reconcile the Skill library', function run() {
+  withFixture(function inspect(current) {
+    const settings = Object.assign({}, current.settings, {
+      libraryRoot: path.join(current.root, 'missing-library'),
+      codexGlobalGuidancePolicy: 'manage',
+    });
+    const plan = controlPlane.buildRepairPlan(settings, { scope: 'codex-guidance' });
+    assert.strictEqual(plan.actions.length, 1);
+    assert.strictEqual(plan.actions[0].path, settings.codexAgentsFile);
+  });
+});
+
 test('discovers and packages a top-level symlinked library Skill', function run() {
   withFixture(function inspect(current) {
     const external = writeSkill(path.join(current.root, 'external', 'linked-skill'), 'linked-skill', 'Linked source workflow.');
@@ -513,6 +684,22 @@ test('rejects an unknown Codex user Skill policy', function run() {
   });
 });
 
+test('rejects an unknown Codex global guidance policy', function run() {
+  withFixture(function inspect(current) {
+    const payload = JSON.parse(fs.readFileSync(current.configPath, 'utf8'));
+    payload.policies = { codex_global_guidance: 'overwrite' };
+    fs.writeFileSync(current.configPath, JSON.stringify(payload, null, 2), 'utf8');
+    assert.throws(function reload() {
+      controlPlane.loadSettings({
+        projectRoot: current.root,
+        configPath: current.configPath,
+        homeDir: current.root,
+        env: { HOME: current.root },
+      });
+    }, /codex_global_guidance must be observe or manage/);
+  });
+});
+
 test('mutating startup migrates only missing legacy entries without breaking or overwriting Agents data', function run() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ash-legacy-migration-'));
   try {
@@ -575,6 +762,26 @@ test('read-only doctor does not initialize a missing ASH home', function run() {
   } finally {
     removeTree(root);
   }
+});
+
+test('version and help do not initialize a missing ASH home', function run() {
+  ['--version', '--help'].forEach(function check(argument) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ash-read-only-meta-'));
+    try {
+      const env = Object.assign({}, process.env, { HOME: root });
+      delete env.ASH_SKILLS_DIR;
+      const result = childProcess.spawnSync(
+        '/bin/bash',
+        [path.join(__dirname, '..', 'bin', 'ash'), argument],
+        { cwd: path.join(__dirname, '..'), env, encoding: 'utf8' },
+      );
+      assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+      assert.strictEqual(fs.existsSync(path.join(root, '.agents')), false);
+      assert.strictEqual(fs.existsSync(path.join(root, '.ash')), false);
+    } finally {
+      removeTree(root);
+    }
+  });
 });
 
 let failures = 0;

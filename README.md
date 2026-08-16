@@ -180,6 +180,7 @@ ash add --all -p             # Install ALL skills to project
 | **`info`** | **View Skill Details**. Shows metadata, descriptions, and prompt previews. | `ash info <name>` |
 | **`search`** | **Search Skills**. Search through names and descriptions using keywords. | `ash search <keyword>` |
 | **`status`** | **Check Deployment**. Shows skill counts per IDE. Supports detailed IDE mapping. | `ash status`<br>`ash status --full`<br>`ash status cursor` |
+| **`create`** | **Create a User Skill**. Scaffolds `SKILL.md` and `agents/openai.yaml` directly in the universal Agents library. | `ash create review-release --description "Review release readiness and evidence."` |
 | **`inventory`** | **Unified Inventory**. Aggregates ASH, Agents lock, Codex Store, system, and plugin Skills. | `ash inventory`<br>`ash inventory --json` |
 | **`doctor`** | **Health Audit**. Checks metadata, links, locks, ownership conflicts, and generated artifacts. | `ash doctor`<br>`ash doctor --verbose` |
 | **`repair`** | **Safe One-click Repair**. Dry-runs by default; `--apply` reconciles deterministic links and opted-in Codex user Skill migrations. | `ash repair`<br>`ash repair --apply` |
@@ -194,20 +195,23 @@ ash add --all -p             # Install ALL skills to project
 
 ## 🩺 Skill Control Plane and Safe Repair
 
-ASH treats `~/.agents/skills` as the only universal library and activation root. Real directories and top-level Skill symlinks are both supported. Cursor, Claude, TRAE, and other client-specific roots are reconciliation targets. The default policy transactionally migrates user-installed Codex Store and manual Codex-root Skills into Agents, while Codex system and plugin Skills remain read-only external sources. `~/.ash` stores only control-plane state, catalogs, packages, and recoverable transactions.
+ASH treats `~/.agents/skills` as the only universal library and activation root. Real directories and top-level Skill symlinks are both supported. Cursor, Claude, TRAE, and other client-specific roots are reconciliation targets. The default policy transactionally migrates user-installed Codex Store and manual Codex-root Skills into Agents, while Codex system and plugin Skills remain read-only external sources. It can also maintain one marker-delimited instruction block in `$CODEX_HOME/AGENTS.md`, teaching new Codex tasks to create user Skills through ASH. `~/.ash` stores only control-plane state, catalogs, packages, and recoverable transactions.
 
 On upgrade, a mutating command discovers legacy Skills recursively and copies only missing names into the standard flat layout; existing Agents entries are never overwritten. ASH no longer loads `~/.ash/skills`. Review same-name conflicts before archiving it.
 
 ```bash
 ash inventory             # Inspect every known source and owner
+ash create my-skill --description "What it does and when to use it"
 ash doctor                # Read-only audit, including on first run
 ash repair                # Preview deterministic safe actions
 ash repair --apply        # Apply actions and record a rollback transaction
+ash repair --scope codex-guidance          # Preview only AGENTS.md guidance
+ash repair --scope codex-guidance --apply  # Apply without reconciling other targets
 ash rollback latest       # Preview the latest rollback
 ash rollback latest --apply
 ```
 
-Repair never overwrites regular files, real directories, or valid links owned by another source. With `policies.codex_user_skills` set to `migrate-to-agents`, it moves only user-installed Codex-root Skills, unregisters matching Store entries, and records a reversible transaction. Codex `.system` Skills and plugin caches are never moved. Configure policies, sources, targets, and outputs in [`ash-control.json`](ash-control.json); see [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md) for the complete design.
+Repair never overwrites regular files, real directories, or valid links owned by another source. With `policies.codex_user_skills` set to `migrate-to-agents`, it moves only user-installed Codex-root Skills, unregisters matching Store entries, and records a reversible transaction. With `policies.codex_global_guidance` set to `manage`, it updates only ASH's marked block in Codex `AGENTS.md`; a non-empty `AGENTS.override.md` blocks the repair. Codex `.system` Skills and plugin caches are never moved. Configure policies, sources, targets, and outputs in [`ash-control.json`](ash-control.json); see [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md) for the complete design.
 
 ---
 
