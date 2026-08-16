@@ -133,6 +133,20 @@ test('discovers the universal Agents library without lock-file duplicates', func
   });
 });
 
+test('parses YAML block scalar chomping indicators in Skill descriptions', function run() {
+  withFixture(function inspect(current) {
+    const skillPath = path.join(current.library, 'folded-description');
+    fs.mkdirSync(skillPath);
+    fs.writeFileSync(
+      path.join(skillPath, 'SKILL.md'),
+      '---\nname: folded-description\ndescription: >-\n  First line\n  second line\n---\n',
+      'utf8',
+    );
+    const parsed = controlPlane.parseSkill(skillPath, 'folded-description');
+    assert.strictEqual(parsed.description, 'First line second line');
+  });
+});
+
 test('doctor is read-only and reports missing links', function run() {
   withFixture(function inspect(current) {
     const before = fs.readdirSync(current.clientRoot).sort();
@@ -354,6 +368,148 @@ test('rejects a client target that reuses the universal library path', function 
         env: { HOME: current.root },
       });
     }, /must not reuse the universal Skill library path/);
+  });
+});
+
+test('Codex user Skill policy migrates Store and untracked sources and rolls back safely', function run() {
+  withFixture(function inspect(current) {
+    const storeSource = writeSkill(
+      path.join(current.codexRoot, '@publisher', 'store-skill'),
+      'store-skill',
+      'Store-installed workflow.',
+    );
+    const systemSource = writeSkill(
+      path.join(current.codexRoot, '.system', 'system-skill'),
+      'system-skill',
+      'Codex-owned system workflow.',
+    );
+    const pluginSource = writeSkill(
+      path.join(current.root, 'codex', 'plugins', 'example', 'skills', 'plugin-skill'),
+      'plugin-skill',
+      'Plugin-owned workflow.',
+    );
+    fs.writeFileSync(current.settings.codexStoreLock, JSON.stringify({
+      version: 1,
+      skills: {
+        '@publisher/store-skill': {
+          version: '1.2.3',
+          installDir: storeSource,
+        },
+      },
+    }, null, 2), 'utf8');
+    const settings = Object.assign({}, current.settings, {
+      codexUserSkillsPolicy: 'migrate-to-agents',
+    });
+
+    assert(controlPlane.runDoctor(settings).some(function outside(item) {
+      return item.code === 'CODEX_USER_SKILLS_OUTSIDE_AGENTS';
+    }));
+    const plan = controlPlane.buildRepairPlan(settings);
+    const migrationSources = plan.actions.filter(function migration(action) {
+      return action.kind === 'skill_migrate';
+    }).map(function source(action) { return action.source; }).sort();
+    assert.deepStrictEqual(migrationSources, [
+      path.join(current.codexRoot, 'manual-codex'),
+      storeSource,
+    ].sort());
+    assert.strictEqual(plan.actions.some(function systemMigration(action) {
+      return action.kind === 'skill_migrate' &&
+        (action.source === systemSource || action.source === pluginSource);
+    }), false);
+
+    const transaction = controlPlane.applyRepair(settings, plan);
+    const manualDestination = path.join(current.library, 'manual-codex');
+    const storeDestination = path.join(current.library, 'store-skill');
+    assert(fs.lstatSync(manualDestination).isDirectory());
+    assert(fs.lstatSync(storeDestination).isDirectory());
+    assert.strictEqual(controlPlane.lexists(path.join(current.codexRoot, 'manual-codex')), false);
+    assert.strictEqual(controlPlane.lexists(storeSource), false);
+    assert(fs.existsSync(path.join(systemSource, 'SKILL.md')));
+    assert(fs.existsSync(path.join(pluginSource, 'SKILL.md')));
+    assert.strictEqual(
+      Object.prototype.hasOwnProperty.call(
+        JSON.parse(fs.readFileSync(settings.codexStoreLock, 'utf8')).skills,
+        '@publisher/store-skill',
+      ),
+      false,
+    );
+    assert.strictEqual(
+      controlPlane.canonicalPath(path.join(current.clientRoot, 'store-skill')),
+      controlPlane.canonicalPath(storeDestination),
+    );
+    assert(controlPlane.catalogIsCurrent(settings));
+
+    controlPlane.applyRollback(settings, path.basename(path.dirname(transaction)));
+    assert(fs.existsSync(path.join(current.codexRoot, 'manual-codex', 'SKILL.md')));
+    assert(fs.existsSync(path.join(storeSource, 'SKILL.md')));
+    assert.strictEqual(controlPlane.lexists(manualDestination), false);
+    assert.strictEqual(controlPlane.lexists(storeDestination), false);
+    assert.strictEqual(
+      JSON.parse(fs.readFileSync(settings.codexStoreLock, 'utf8')).skills['@publisher/store-skill'].version,
+      '1.2.3',
+    );
+  });
+});
+
+test('Codex user Skill migration adopts a matching Agents alias and restores it on rollback', function run() {
+  withFixture(function inspect(current) {
+    const source = path.join(current.codexRoot, 'manual-codex');
+    const destination = path.join(current.library, 'manual-codex');
+    controlPlane.createDirectoryLink(source, destination);
+    const settings = Object.assign({}, current.settings, {
+      codexUserSkillsPolicy: 'migrate-to-agents',
+    });
+    const plan = controlPlane.buildRepairPlan(settings);
+    assert(plan.actions.some(function migration(action) {
+      return action.kind === 'skill_migrate' && action.source === source && action.path === destination;
+    }));
+    const transaction = controlPlane.applyRepair(settings, plan);
+    assert(fs.lstatSync(destination).isDirectory());
+    assert.strictEqual(fs.lstatSync(destination).isSymbolicLink(), false);
+    assert.strictEqual(controlPlane.lexists(source), false);
+
+    controlPlane.applyRollback(settings, path.basename(path.dirname(transaction)));
+    assert(fs.lstatSync(destination).isSymbolicLink());
+    assert.strictEqual(controlPlane.canonicalPath(destination), controlPlane.canonicalPath(source));
+    assert(fs.existsSync(path.join(source, 'SKILL.md')));
+  });
+});
+
+test('Codex user Skill migration refuses an existing Agents owner', function run() {
+  withFixture(function inspect(current) {
+    const destination = writeSkill(
+      path.join(current.library, 'manual-codex'),
+      'manual-codex',
+      'Agents-owned workflow.',
+    );
+    const settings = Object.assign({}, current.settings, {
+      codexUserSkillsPolicy: 'migrate-to-agents',
+    });
+    const plan = controlPlane.buildRepairPlan(settings);
+    assert(plan.conflicts.some(function migrationConflict(item) {
+      return item.code === 'CODEX_SKILL_MIGRATION_CONFLICT';
+    }));
+    assert.strictEqual(plan.actions.some(function unsafe(action) {
+      return action.kind === 'skill_migrate' && action.path === destination;
+    }), false);
+    assert(fs.existsSync(path.join(current.codexRoot, 'manual-codex', 'SKILL.md')));
+    assert(fs.readFileSync(path.join(destination, 'SKILL.md'), 'utf8').includes('Agents-owned workflow.'));
+  });
+});
+
+test('rejects an unknown Codex user Skill policy', function run() {
+  withFixture(function inspect(current) {
+    const payload = JSON.parse(fs.readFileSync(current.configPath, 'utf8'));
+    payload.policies = { codex_user_skills: 'move-everything' };
+    fs.writeFileSync(current.configPath, JSON.stringify(payload, null, 2), 'utf8');
+    assert.throws(function reload() {
+      controlPlane.loadSettings({
+        projectRoot: current.root,
+        configPath: current.configPath,
+        homeDir: current.root,
+        env: { HOME: current.root },
+      });
+    }, /codex_user_skills must be observe or migrate-to-agents/);
   });
 });
 

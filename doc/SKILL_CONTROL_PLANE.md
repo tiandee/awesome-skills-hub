@@ -17,12 +17,20 @@ It answers four questions:
 | --- | --- | --- |
 | Universal Agents library | `~/.agents/skills/**/SKILL.md` | Canonical Skill content; manage client links, catalog, and packages; never rewrite instructions |
 | Agents installer metadata | `~/.agents/.skill-lock.json` | Observe provenance without duplicating library records |
-| Codex Store | `.skills_store_lock.json` | Observe only |
+| Codex Store user Skills | `.skills_store_lock.json` + install directory | Observe by default; optionally migrate into Agents and unregister transactionally |
 | Codex system | `~/.codex/skills/.system` | Observe only |
 | Codex plugins | `~/.codex/plugins/cache/**/skills` | Observe only |
-| Unknown installs | Present on disk without an ownership record | Report only |
+| Unknown Codex-root installs | Present directly under `~/.codex/skills` without an ownership record | Report by default; optionally migrate into Agents |
 
 When separately configured roots claim the same name, `doctor` reports `MULTIPLE_MANAGERS`; `repair` never chooses an owner automatically.
+
+## Codex user Skill policy
+
+The default project configuration sets `policies.codex_user_skills` to `migrate-to-agents`. With this policy, Store-installed and manually installed user Skills found under `~/.codex/skills` must become real directories in `~/.agents/skills`, using their declared frontmatter names. `doctor` reports drift and `repair` plans the migration; no read-only command moves content.
+
+Migration removes the corresponding Store lock entry, preserves matching Agents aliases, updates client links and the generated catalog, and records every change in the repair transaction. Rollback restores both the original directory and Store metadata. A real directory, unrelated link, invalid Skill name, or duplicate owner at the destination is a hard conflict and is never overwritten.
+
+Set the policy to `observe` to retain the previous read-only Store behavior. Codex `.system` Skills and plugin-cache Skills are always excluded because their lifecycle belongs to Codex or the plugin manager.
 
 ## Target activation
 
@@ -66,14 +74,15 @@ Mutating Bash and PowerShell commands detect legacy `~/.ash/skills`, recursively
 `repair --apply` performs these steps:
 
 1. Re-scan desired and actual state.
-2. Reject ambiguous names and conflicting target paths.
+2. Reject ambiguous names, invalid Skill metadata, and conflicting target paths.
 3. Store new generated content and backups in `~/.ash/state/control-plane/transactions`.
-4. Create missing target directories and ASH-owned links.
-5. Atomically replace only broken links that still match the previewed target.
-6. Update the generated catalog.
-7. Persist progress after every operation.
-8. Automatically roll back completed operations if a later operation fails.
-9. Run a post-repair health audit.
+4. Migrate opted-in Codex user Skills and update their Store lock entries.
+5. Create missing target directories and ASH-owned links.
+6. Atomically replace only broken links that still match the previewed target.
+7. Update the generated catalog.
+8. Persist progress after every operation.
+9. Automatically roll back completed operations if a later operation fails.
+10. Run a post-repair health audit.
 
 Explicit rollback first validates every operation. If a link target or generated file changed after repair, rollback stops before restoring anything.
 
@@ -91,5 +100,6 @@ The control plane deliberately does not:
 - delete unknown Skills;
 - overwrite real files or directories;
 - rewrite `SKILL.md` business instructions;
-- mutate Codex Store, system, or plugin resources;
+- mutate Codex system or plugin resources;
+- mutate Codex Store resources unless `codex_user_skills` explicitly opts into migration;
 - force-resolve multiple-manager conflicts.

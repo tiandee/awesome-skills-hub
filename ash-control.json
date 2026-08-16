@@ -41,6 +41,9 @@
       "enabled": "detected"
     }
   },
+  "policies": {
+    "codex_user_skills": "migrate-to-agents"
+  },
   "sources": {
     "agents_lock": "~/.agents/.skill-lock.json",
     "codex_root": "~/.codex/skills",
