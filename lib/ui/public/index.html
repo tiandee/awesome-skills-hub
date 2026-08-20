@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050505">
+  <meta name="ash-session" content="__ASH_SESSION_TOKEN__">
+  <title>ASH · Skill Library Console</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="masthead">
+    <a class="brand" href="#overview" aria-label="ASH 首页">
+      <span class="brand-mark" aria-hidden="true">▲</span>
+      <strong>ASH</strong>
+      <small>/ LOCAL</small>
+    </a>
+    <div class="library-address">
+      <span class="pulse" aria-hidden="true"></span>
+      <div>
+        <span>ACTIVE USER LIBRARY</span>
+        <code id="library-path">正在读取本机配置…</code>
+      </div>
+    </div>
+    <nav class="rail" aria-label="管理视图">
+      <a class="rail-item is-active" href="#overview" data-view="overview">
+        <span class="rail-index" aria-hidden="true">01</span>
+        <span>总览</span>
+      </a>
+      <a class="rail-item" href="#library" data-view="library">
+        <span class="rail-index" aria-hidden="true">02</span>
+        <span>Skill 库</span>
+      </a>
+      <a class="rail-item" href="#health" data-view="health">
+        <span class="rail-index" aria-hidden="true">03</span>
+        <span>健康</span>
+      </a>
+      <a class="rail-item" href="#maintenance" data-view="maintenance">
+        <span class="rail-index" aria-hidden="true">04</span>
+        <span>维护</span>
+      </a>
+    </nav>
+    <button class="refresh-button" id="refresh-button" type="button">
+      <span aria-hidden="true">↻</span> 重新扫描
+    </button>
+  </header>
+
+  <div class="shell">
+    <main class="workspace" id="main-content" tabindex="-1">
+      <section class="view is-active" id="view-overview" aria-labelledby="overview-title">
+        <div class="section-heading">
+          <div>
+            <h1 id="overview-title">ASH<span aria-hidden="true">/</span></h1>
+            <span class="hero-caption">THE LOCAL AGENT SKILL CONTROL PLANE</span>
+          </div>
+          <p><strong>看见、检查和维护你的用户 Skill。</strong>页面直接读取本地配置，不接管系统、插件或 Agent 私有目录。</p>
+        </div>
+        <div class="metric-grid" id="metric-grid" aria-live="polite"></div>
+        <article class="panel source-observatory" aria-labelledby="source-observatory-title">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-kicker">SOURCE GOVERNANCE / LIVE</span>
+              <h2 id="source-observatory-title">来源覆盖与时效</h2>
+            </div>
+            <span class="stamp">180 DAY WINDOW</span>
+          </div>
+          <div id="source-insights" aria-live="polite"></div>
+        </article>
+        <div class="overview-grid">
+          <article class="panel health-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="panel-kicker">DOCTOR</span>
+                <h2>需要注意的地方</h2>
+              </div>
+              <a class="text-button" href="#health" data-jump="health">查看全部 →</a>
+            </div>
+            <div id="overview-issues"></div>
+          </article>
+          <article class="panel repair-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="panel-kicker">SAFE REPAIR</span>
+                <h2>确定性维护</h2>
+              </div>
+              <span class="stamp">DRY-RUN FIRST</span>
+            </div>
+            <div id="overview-repair"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-library" aria-labelledby="library-title">
+        <div class="section-heading compact">
+          <div>
+            <span class="eyebrow">USER LIBRARY / INDEX</span>
+            <h1 id="library-title">Skill 库</h1>
+          </div>
+          <label class="search-box">
+            <span aria-hidden="true">⌕</span>
+            <input id="skill-search" name="skill-search" type="search" placeholder="搜索名称或描述…" autocomplete="off" spellcheck="false" aria-controls="skill-list">
+          </label>
+        </div>
+        <div class="library-controls">
+          <div class="library-filters" id="library-filters" role="group" aria-label="扫描来源过滤"></div>
+          <div class="library-actions">
+            <button class="secondary-button" type="button" data-action="check-updates">检查更新</button>
+            <button class="secondary-button" type="button" data-action="open-add-root">添加扫描目录</button>
+            <button class="primary-button" type="button" data-action="open-create-skill">创建 Skill</button>
+          </div>
+        </div>
+        <div class="library-layout">
+          <article class="panel skill-list-panel">
+            <div class="table-head">
+              <span>名称</span><span class="size-heading">体量</span><span>更新</span><span>健康</span>
+            </div>
+            <div class="skill-list" id="skill-list"></div>
+          </article>
+          <aside class="panel skill-detail" id="skill-detail">
+            <div class="empty-state">
+              <span class="empty-glyph" aria-hidden="true">↳</span>
+              <h2>选择一个 Skill</h2>
+              <p>查看元数据、文件结构、正文和关联诊断。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-health" aria-labelledby="health-title">
+        <div class="section-heading compact">
+          <div>
+            <span class="eyebrow">ASH DOCTOR / READ ONLY</span>
+            <h1 id="health-title">健康检查</h1>
+          </div>
+          <div class="severity-filter" id="severity-filter" role="group" aria-label="严重等级过滤">
+            <button class="is-active" type="button" data-severity="ALL" aria-pressed="true">全部</button>
+            <button type="button" data-severity="ERROR" aria-pressed="false">错误</button>
+            <button type="button" data-severity="WARN" aria-pressed="false">警告</button>
+            <button type="button" data-severity="INFO" aria-pressed="false">提示</button>
+          </div>
+        </div>
+        <div class="issue-ledger" id="issue-ledger"></div>
+      </section>
+
+      <section class="view" id="view-maintenance" aria-labelledby="maintenance-title">
+        <div class="section-heading compact">
+          <div>
+            <span class="eyebrow">TRANSACTIONAL / GUARDED</span>
+            <h1 id="maintenance-title">维护操作</h1>
+          </div>
+          <p>页面不会执行拼接的 CLI 命令。所有操作直接调用与 CLI 共用的 v2 核心，并在写入前重新扫描。</p>
+        </div>
+        <div class="maintenance-grid">
+          <article class="panel action-card update-card" id="update-card"></article>
+          <article class="panel action-card" id="update-rollback-card"></article>
+          <article class="panel action-card" id="repair-card"></article>
+          <article class="panel action-card" id="rollback-card"></article>
+          <article class="panel action-card retention-card" id="retention-card"></article>
+          <article class="panel action-card snapshot-card" id="snapshot-card"></article>
+        </div>
+        <article class="boundary-note">
+          <span>WRITE BOUNDARY</span>
+          <p>Update 可关联来源、重建基线并更新受管用户 Skill；Repair 只维护 Codex 创建引导；事务清理只删除预览中列出的历史目录。自定义扫描目录永远只读。所有写操作都要求预览、确认和状态重检。</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="workflow-modal" hidden>
+    <section class="confirmation-modal workflow-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-title" aria-describedby="workflow-description">
+      <button class="modal-close" id="workflow-close" type="button" aria-label="关闭">×</button>
+      <span class="eyebrow" id="workflow-eyebrow">LOCAL WORKFLOW</span>
+      <h2 id="workflow-title">新建操作</h2>
+      <p id="workflow-description"></p>
+      <form id="workflow-form">
+        <div class="workflow-fields" id="workflow-fields"></div>
+        <div class="modal-buttons">
+          <button class="secondary-button" id="workflow-cancel" type="button">取消</button>
+          <button class="primary-button" id="workflow-submit" type="submit">生成预览</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="confirmation-modal" hidden>
+    <section class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-description">
+      <button class="modal-close" id="modal-close" type="button" aria-label="关闭">×</button>
+      <span class="eyebrow" id="modal-eyebrow">REVIEW REQUIRED</span>
+      <h2 id="modal-title">确认操作</h2>
+      <p id="modal-description"></p>
+      <div class="modal-actions-list" id="modal-actions"></div>
+      <label class="confirmation-check">
+        <input id="modal-confirm-check" type="checkbox">
+        <span>我已经核对上述目标，并同意执行本次操作。</span>
+      </label>
+      <div class="modal-buttons">
+        <button class="secondary-button" id="modal-cancel" type="button">取消</button>
+        <button class="danger-button" id="modal-apply" type="button" disabled>确认执行</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

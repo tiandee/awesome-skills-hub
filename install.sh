@@ -1,117 +1,16 @@
 #!/bin/bash
-# One-step installer for Awesome-Skills-Hub (ASH) v1.1.0
+set -e
 
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-log_info() { echo -e "${BLUE}[信息]${NC} $1"; }
-log_success() { echo -e "${GREEN}[成功]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
-log_error() { echo -e "${RED}[错误]${NC} $1"; }
-
-log_info "正在安装 Awesome-Skills-Hub (ASH)..."
-
-# 1. 检测安装模式 (本地 vs 远程)
-# 如果当前目录下存在 bin/ash，则视为本地安装/开发模式
-# 否则视为远程安装，将仓库克隆到 ~/.ash/app
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-if [ ! -f "$PROJECT_ROOT/bin/ash" ]; then
-    log_info "未检测到本地运行环境，进入远程安装模式..."
-    
-    ASH_APP_DIR="$HOME/.ash/app"
-    
-    if [ -d "$ASH_APP_DIR" ]; then
-        log_info "发现旧的安装目录，正在更新..."
-        rm -rf "$ASH_APP_DIR"
-    fi
-    
-    log_info "正在克隆代码库到 $ASH_APP_DIR ..."
-    git clone https://github.com/tiandee/awesome-skills-hub.git "$ASH_APP_DIR"
-    
-    if [ $? -ne 0 ]; then
-        log_error "克隆失败，请检查网络或 git 设置。"
-        exit 1
-    fi
-    
-    log_info "代码克隆成功，转交控制权给本地安装脚本..."
-    exec "$ASH_APP_DIR/install.sh"
-    exit 0
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  echo "ERROR: ASH requires Node.js and npm." >&2
+  exit 2
 fi
 
-# ========================================================
-# 以下为本地安装逻辑 (Local Install Flow)
-# ========================================================
+echo "Installing ASH from $PROJECT_ROOT ..."
+npm install -g "$PROJECT_ROOT"
+node "$PROJECT_ROOT/bin/ash-wrapper.js" init
 
-ASH_BIN="$PROJECT_ROOT/bin/ash"
-chmod +x "$ASH_BIN"
-
-# 3. 初始化通用 Skill 库
-# bin/ash 会把旧 ~/.ash/skills 中缺失的条目安全补迁到 ~/.agents/skills，
-# 再补充仓库内置 Skill；同名条目一律不覆盖。
-log_info "正在初始化通用 Skill 库 (~/.agents/skills)..."
-"$ASH_BIN" init
-
-# 4. 尝试创建系统软链接 (免 source 方案)
-log_info "尝试创建系统级软链接 (可能需要 sudo)..."
-if [ -w "/usr/local/bin" ]; then
-    ln -sf "$ASH_BIN" "/usr/local/bin/ash"
-    log_success "已成功创建软链接: /usr/local/bin/ash"
-else
-    log_warn "/usr/local/bin 不可写，跳过软链接创建。将尝试配置 Shell 环境变量。"
-fi
-
-# 5. 自动配置环境变量 (PATH)
-configure_path() {
-    local shell_type="$1"
-    local config_file="$2"
-    local export_cmd="$3"
-
-    if [ -f "$config_file" ]; then
-        if ! grep -q "awesome-skills-hub/bin" "$config_file"; then
-            log_info "正在为 $shell_type 配置环境变量 ($config_file)..."
-            echo "" >> "$config_file"
-            echo "# Awesome-Skills-Hub (ASH) PATH" >> "$config_file"
-            echo "$export_cmd" >> "$config_file"
-            log_success "$shell_type 环境变量已配置。"
-            return 0
-        else
-            log_success "$shell_type 变量已在 $config_file 中配置。"
-            return 1
-        fi
-    fi
-    return 2
-}
-
-# 检测并配置常用 Shell
-PATH_INJECTED=0
-
-# ZSH
-if configure_path "Zsh" "$HOME/.zshrc" "export PATH=\"\$PATH:$PROJECT_ROOT/bin\""; then PATH_INJECTED=1; fi
-
-# Bash
-if configure_path "Bash" "$HOME/.bashrc" "export PATH=\"\$PATH:$PROJECT_ROOT/bin\""; then PATH_INJECTED=1; fi
-if [ -f "$HOME/.bash_profile" ]; then
-    if configure_path "Bash (Profile)" "$HOME/.bash_profile" "export PATH=\"\$PATH:$PROJECT_ROOT/bin\""; then PATH_INJECTED=1; fi
-fi
-
-# Fish
-if [ -d "$HOME/.config/fish" ]; then
-    if configure_path "Fish" "$HOME/.config/fish/config.fish" "set -gx PATH \$PATH $PROJECT_ROOT/bin"; then PATH_INJECTED=1; fi
-fi
-
-if [ $PATH_INJECTED -eq 1 ]; then
-    log_warn "提示: 请重启终端或运行 'source' 命令使配置生效。"
-fi
-
-echo ""
-log_success "安装完成！"
-if command -v ash >/dev/null 2>&1; then
-    log_success "验证成功: 'ash' 命令现在已全局可用。"
-else
-    log_info "提示: 如果 'ash' 命令不可用，请尝试运行 'source ~/.zshrc' (或您对应的 Shell 配置文件)。"
-fi
-echo ""
+echo "ASH installed. User Skills live only in $HOME/.agents/skills."
+echo "Run 'ash --help' to see the supported commands."

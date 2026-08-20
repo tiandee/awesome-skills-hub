@@ -1,14 +1,19 @@
 {
     "name": "askill",
-    "version": "1.1.32",
-    "description": "The 'Homebrew' for AI IDE Skills - Write Once, Link Everywhere.",
-    "main": "index.js",
+    "version": "2.0.0",
+    "description": "A safe manager, auditor, packager, and migration tool for the universal ~/.agents/skills user library.",
+    "main": "lib/control-plane/index.js",
     "bin": {
         "ash": "bin/ash-wrapper.js",
         "askill": "bin/ash-wrapper.js"
     },
     "scripts": {
-        "test": "node tests/control-plane.test.js"
+        "test": "node tests/control-plane.test.js && node tests/update.test.js && node tests/retention.test.js && node tests/status.test.js && node tests/skills-sh.test.js && node tests/ui.test.js",
+        "test:ui": "node tests/ui.test.js",
+        "test:update": "node tests/update.test.js",
+        "test:retention": "node tests/retention.test.js",
+        "test:status": "node tests/status.test.js",
+        "test:skills-sh": "node tests/skills-sh.test.js"
     },
     "repository": {
         "type": "git",
@@ -16,10 +21,10 @@
     },
     "keywords": [
         "ai",
-        "cursor",
+        "agents",
         "prompts",
         "skills",
-        "windsurf",
+        "skill-manager",
         "cli",
         "dev-tool"
     ],
@@ -33,7 +38,6 @@
         "bin",
         "lib",
         "doc",
-        "skills",
         "ash-control.json",
         "install.sh",
         "install.ps1",

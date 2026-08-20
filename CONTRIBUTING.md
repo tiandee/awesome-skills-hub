@@ -1,37 +1,51 @@
-# Contributing to Awesome-Skills-Hub
+# Contributing to Awesome Skills Hub
 
-Thank you for your interest in contributing! This project aims to be a collaborative library of high-quality AI prompts and skills.
+ASH manages top-level user Skills in `~/.agents/skills`. Contributions must keep
+that single-root model and must not reintroduce per-Agent installation paths.
 
-## How to Add a New Skill
+## Skill ownership
 
-1.  **Fork the repository**.
-2.  **Create a new file**: 
-    -   Navigate to `skills/`.
-    -   Choose the appropriate category folder (e.g., `java`, `python`, `general`).
-    -   If a category doesn't exist, feel free to create it.
-    -   Create your markdown file, e.g., `my-cool-skill.md`.
+ASH does not bundle or publish Skill payloads. Do not add a project `skills/`
+directory or code that seeds Skill content into the user library. User Skills are
+created explicitly, restored from user snapshots, or adopted from an exact upstream
+source through the page's preview-first workflow.
 
-3.  **Skill Format**:
-    Ideally, your skill file should contain a clear system prompt or set of instructions. 
-    
-    Example:
-    ```markdown
-    # Expert Java Developer
-    
-    You are an expert Java developer using Spring Boot...
-    ```
+## Page-first maintenance and frozen CLI
 
-4.  **Test it**:
-    -   Run `ash install <your-skill-path>` locally.
-    -   Verify it works in your target IDE (Antigravity/Cursor/etc.).
+The local management page and its loopback API are the primary product surface
+for new interactive workflows. Add user-facing management features to
+`lib/ui/service.js`, `lib/ui/server.js`, and the page before considering a new
+CLI surface.
 
-5.  **Submit a Pull Request**:
-    -   Describe what your skill does.
-    -   We will review and merge it!
+The v2 CLI command set is frozen. Change it only when one of these conditions is
+met:
 
-## Reporting Issues
+- the command is required to bootstrap or operate the local page;
+- a headless automation workflow cannot use the page;
+- compatibility, data safety, or a broken existing command requires a fix.
 
-If you find a bug in the CLI tool `ash`, please open a GitHub Issue with:
--   Your OS version.
--   The error message.
--   Steps to reproduce.
+Do not add a CLI alias or parallel implementation for every page feature. When
+both surfaces need a capability, implement it once in `lib/control-plane` and
+keep CLI/API code as thin adapters.
+
+## Change shared management behavior
+
+- Keep all business logic in `lib/control-plane`; shell and PowerShell files are launchers only.
+- Treat `~/.agents/skills` as the only Skill content root ASH manages.
+- Keep read-only commands read-only, including on a fresh home directory.
+- Make writes dry-run-first when they reconcile generated state.
+- Never overwrite an existing user Skill or copy Agent-owned system/plugin Skills.
+- Add focused tests and a real launcher-level acceptance path.
+- Keep source-update checks and writes behind the web service; do not add an
+  `ash update` command to the frozen CLI.
+- Update writes must revalidate local content, installer-lock metadata, upstream
+  folder hash, preserved local entries, and rollback state.
+
+## Validate
+
+```bash
+npm test
+npm pack --dry-run
+```
+
+Include the observed commands and results in the pull request description.

@@ -1,328 +1,252 @@
-# Awesome-Skills-Hub (ASH) 🚀
+# Awesome Skills Hub (ASH)
 
-> **One skill library, every AI IDE** — install once, sync to Cursor, Claude, Windsurf, and more.
+> A focused manager for the universal user Skill library at `~/.agents/skills`.
 
-[![NPM Version](https://img.shields.io/npm/v/askill?color=red)](https://www.npmjs.com/package/askill)
-[![License](https://img.shields.io/npm/l/askill)](https://github.com/tiandee/awesome-skills-hub/blob/main/LICENSE)
+[中文文档](README_CN.md) · [Control-plane design](doc/SKILL_CONTROL_PLANE.md)
 
-A lightweight package manager for AI IDE skills, rules, and architecture instructions.
+ASH v2 manages one thing: user-owned Agent Skills. It creates, discovers, audits,
+packages, and migrates Skills in `~/.agents/skills` without copying them into
+Cursor, Claude, Windsurf, TRAE, Copilot, Codex, or any other client-specific root.
 
-**English** | [简体中文](README_CN.md) | [Contributing](CONTRIBUTING.md)
+## Why v2 is smaller
 
----
+Modern Agent tooling increasingly shares the standard Agents Skill location.
+Maintaining a second layer of per-client symlinks created noisy diagnostics,
+duplicated Bash and PowerShell implementations, and blurred ownership between
+user Skills and system/plugin Skills.
 
-## 📑 Table of Contents
+ASH v2 therefore removes:
 
-- [🚀 Features](#-features)
-- [💡 Why ASH?](#-why-ash-the-bridge-philosophy)
-- [📦 Installation](#-installation)
-- [📖 Usage Manual](#-usage-manual)
-- [🚀 Ecosystem Integration](#-ecosystem-integration)
-- [📂 System Architecture](#-system-architecture)
-- [🤝 Supported Platforms](#-supported-platforms)
-- [🛠️ Contributing](#️-contributing)
+- per-Agent detection, linking, status, cleanup, and uninstall commands;
+- project-mode `.claude/skills` bridges;
+- bundled Skill payloads and automatic seeding into the user library;
+- automatic migration from the retired `~/.ash/skills` directory;
+- Codex Store, system Skill, plugin-cache, and untracked-Codex scanning;
+- the legacy `add`/`install` GitHub downloader.
 
----
+Agent-owned system and plugin Skills remain owned by their Agent. ASH never
+copies, repairs, packages, or migrates them.
 
-Awesome-Skills-Hub (ASH) is a lightweight package manager designed to unify the management of AI Skills (Prompts, Rules, Instructions) across different AI coding environments.
+## Install
 
-Chinese users can also discover more skills through [Skills宝](https://skilery.com).
-
-Instead of copying and pasting your favorite "Expert Java Developer" prompt into Antigravity, Cursor, Windsurf, and Claude separately, `ash` uses the standard `~/.agents/skills` directory as one universal source of truth and safely links selected Skills to client-specific roots.
-
-## 🚀 Features
-
-- **Dual-Scope Management**: Support both **Global Scope** (`~/.agents/skills`) and **Project Scope** (Project-local).
-- **Universal IDE Bridge**: Automatically compatibilizes with **Cursor**, **Windsurf**, **TRAE**, **Antigravity**, and **Copilot).
-- **Centralized "Homebrew"**: Keep all your prompts in the standard Agents library, independent of client-specific IDE configs.
-- **Live Symlinks**: Updates in the universal library immediately reflect in all connected IDEs.
-- **Ecosystem Integration**: Reuse Skills downloaded via `npx skills` directly, without maintaining a second copy (see [Ecosystem Integration](#-ecosystem-integration)).
-- **Smart Monorepo Discovery**: Interactive UI to scan and install skills from complex repositories (e.g., `huggingface/skills`).
-- **Meta-Skill (Self-Discovery)**: Empower your Agent to autonomously search and install the skills it needs (`ash search` -> `ash add`).
-
-## 💡 Why ASH? (The "Bridge" Philosophy)
-
-Unlike other tools that just *download* **static skill content** (Repository) or try to *convert* formats (Loader), **ASH** acts as a physical **Bridge**.
-
-| Feature | 🛠️ Other Tools (e.g., OpenSkills) | 🚀 ASH (This Tool) |
-| :--- | :--- | :--- |
-| **Philosophy** | **Loader**: Generates config files usually only for one Agent. | **Bridge**: Delivers skills directly to the IDE's doorstep (`~/.cursor/skills`, etc.). |
-| **Compatibility** | Requires Agent to support a specific standard. | **Universal**: Works immediately with Cursor, Windsurf, Trae, etc., without waiting for plugin support. |
-| **Distribution** | "One Skill, One Install" | **"Write Once, Link Everywhere"**: Install a skill once, and it syncs to 8+ IDEs instantly. |
-| **Discovery** | Manual Path Entry | **Interactive Monorepo Scanning**: Auto-detects skills in subfolders. |
-
----
-
-## 📦 Installation
-
-### 1. Zero-Install (Try it out)
-Run instantly without installing anything:
-
-> **💡 Pro Tip**: You can use the short alias `npx askill` instead of `npx awesome-skills-hub`.
+From npm after v2 is published:
 
 ```bash
-# 1. Browse Skill Library
-npx askill list
-
-# 2. Install a Skill (Auto-initializes & syncs to IDEs)
-npx askill install pdf
-```
-
-> **💡 Pro Tip**: Zero-Install mode is primarily for trying **Built-in Skills**. To **manage your full library** (including adding custom skills) and unlock offline speed, please use **Quick Install**.
-
-### 2. Quick Install (Recommended)
-
-**Via NPM (Cross-Platform):**
-```bash
-# 1. Install globally (Unlocks the 'ash' command)
 npm install -g askill
-
-# 2. Initialize environment (Detects IDEs & prepares ~/.agents/skills)
 ash init
+```
 
-# 3. Verify installation (List available skills)
+From a source checkout:
+
+```bash
+git clone https://github.com/tiandee/awesome-skills-hub.git
+cd awesome-skills-hub
+npm install -g .
+ash init
+```
+
+`ash init` only creates `~/.agents/skills` when needed. ASH ships no Skills and
+never seeds or overwrites user-library content.
+
+## Common workflows
+
+```bash
+# Inspect the user library
 ash list
+ash search release
+ash info delivery-loop
+ash inventory
+ash ui
+
+# Create a user Skill
+ash create review-release \
+  --description "Review release readiness and required evidence."
+
+# Audit user Skill quality and local metadata
+ash doctor
+ash doctor --verbose
+
+# Preview Codex guidance repair
+ash repair
+ash repair --apply
+
+# Package user Skills
+ash package delivery-loop
+ash package --all
 ```
 
-### 3. Alternative Install (Shell Script)
-If you don't have Node.js installed:
-
-**macOS / Linux:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.sh | bash
-```
-
-**Windows (Supported):**
-```powershell
-# One-line install (requires Git)
-irm https://raw.githubusercontent.com/tiandee/awesome-skills-hub/main/install.ps1 | iex
-# Reload profile to use ash
-. $PROFILE
-```
-
-### 4. Manual Install (Clone)
-If you want to contribute code:
-
-**macOS / Linux:**
-```bash
-# Run installer
-bash install.sh
-
-# Reload shell config
-source ~/.zshrc  # or ~/.bashrc
-```
-
-**Windows:**
-```powershell
-# From project root after clone
-.\install.ps1
-# Reload profile
-. $PROFILE
-```
-
-**The installer will:**
-1. Detect and initialize all mainstream AI IDE environments.
-2. **Prepare the universal library**: Add missing bundled Skills to `~/.agents/skills` (or `~\.agents\skills` on Windows) without overwriting existing entries.
-3. Configure environment variables for **Zsh**, **Bash**, and **Fish**.
-4. Enable global `ash` command access instantly.
-
----
-
-## 📖 Usage Manual
-
-### 1. Browse Skill Library
-Browse official Anthropic skills:
+To install third-party user Skills, use an installer that writes to the standard
+library, for example:
 
 ```bash
-ash list
+npx skills add owner/repository
+ash doctor
 ```
 
-### 2. View Skill Details
-Get detailed descriptions, triggers, and content previews:
+## Command reference
+
+| Command | Purpose |
+| --- | --- |
+| `ash init` | Create the user library when missing |
+| `ash list` | List top-level user Skills |
+| `ash info <name>` | Show one user Skill |
+| `ash search <query>` | Search names and descriptions |
+| `ash create <name>` | Create `SKILL.md` and `agents/openai.yaml` |
+| `ash inventory` | Show the user library and Agents installer-lock drift |
+| `ash doctor` | Audit metadata, broken user links, lock drift, artifacts, and Codex creation guidance |
+| `ash repair` | Preview Codex-guidance writes |
+| `ash rollback` | Roll back a completed repair transaction |
+| `ash package` | Build deterministic `.skill` archives |
+| `ash snapshot` | Create, restore, or verify a user-only migration snapshot |
+| `ash sync` | Pull the ASH source checkout with `git pull --ff-only` |
+| `ash ui` | Start the loopback-only local management page |
+
+`sync` is not cross-machine synchronization and does not upload the user library.
+Use snapshots for computer-to-computer migration.
+
+## Local management page
 
 ```bash
-ash info pdf       # Supports smart name matching
+ash ui
+ash ui --port 4173 --no-open
 ```
 
-### 3. Install a Skill (Global / User Level)
-Link a Skill from the universal **Agents library** (`~/.agents/skills`) to detected client directories.
+`ash ui` starts a local HTTP server on `127.0.0.1` and opens the management
+page. The page shows the configured user library, Skill metadata and source,
+Doctor findings, repair plans, and the latest rollback transaction. It can also:
+
+- add and remove persistent read-only scan roots without touching their files;
+- collapse symlinked entries that resolve to the same physical Skill while
+  retaining every location, and report only same-name/different-content roots;
+- create standard Skill scaffolds in the managed user library;
+- update a managed Skill description through a transactional, rollback-safe write;
+- package any selected Skill into the configured package output;
+- create, verify, and additively restore page-managed user-library snapshots;
+- show source coverage, unavailable sources, missing baselines, and stale provenance;
+- present seven concise update states while keeping errors, warnings, and info as
+  an independent health dimension;
+- preview and prune obsolete or expired transaction history while protecting the
+  current safe rollback for each transaction type;
+- discover exact-name skills.sh candidates for an untracked Skill, require a
+  human source choice, then take it over from the selected exact URL (or a GitHub
+  repository and path), or safely rebuild a comparable legacy baseline;
+- distinguish the skills.sh takeover channel from the GitHub code upstream, with
+  safe links to the catalog page, repository, and exact `SKILL.md` source;
+- check source-locked GitHub Skills for updates, preview file-level changes,
+  update one managed Skill transactionally, and roll the update back safely.
+
+Update preview explicitly distinguishes preserved local `.env`, `.local`, and
+nested links from discarded caches such as `node_modules`, `__pycache__`, and
+embedded `.git` data. Nothing is removed before confirmation, and the complete
+previous directory remains available to the guarded update rollback.
+
+Source statistics are derived from live user-library and installer-lock state;
+records older than 180 days are reported but never modified. Transaction cleanup
+is irreversible and confirmation-gated: repair and update histories retain their
+newest 10 entries or anything from the last 30 days, and the currently valid
+rollback for each type is always protected.
+
+The managed library still follows `library.path` or `ASH_SKILLS_DIR`. Additional
+scan roots are stored in `~/.agents/.ash/state/control-plane/ui-preferences.json` and are
+always observe-only. Snapshots created by the page live under the same state
+directory and include only the managed user library.
+
+ASH keeps generated state below the existing `~/.agents` namespace and does not
+create a top-level `~/.ash` directory.
+
+The browser does not execute or parse CLI commands. The local API and CLI call
+the same `lib/control-plane` modules. Repair and rollback remain preview-first:
+the page requires explicit confirmation, the server rescans and compares a
+one-time plan digest, and the existing transaction and hash preflight stays
+authoritative. The server refuses non-loopback binding and does not enable CORS.
+Repository sync, untracked third-party installation, raw instruction editing, deletion, and
+uninstall remain outside the page because they cross network or ownership
+boundaries or can destroy user content.
+
+## Maintenance priority
+
+The local page and API are the primary surface for new interactive management
+features. The v2 CLI command set is frozen except for page bootstrap, necessary
+headless automation, compatibility, and safety fixes. A page feature does not
+automatically need a matching CLI command. Shared behavior still belongs in
+`lib/control-plane`, with CLI and API kept as thin adapters.
+
+## Move user Skills to another computer
+
+On the source computer:
 
 ```bash
-ash add pdf               # Install by name (Global)
-ash add --all             # Sync all 17+ skills to all IDEs at once
+ash snapshot create user-skills.ash-snapshot
 ```
 
-### 4. Project Mode (Local Install) 🆕 (Aliases: `add`, `install`)
-Install a skill (e.g., `ash add expert`) directly into your **Current Project Directory**.
-ASH enforces `.claude/skills` consistency but **automatically bridges** to your IDE.
+Copy that file to the destination, then preview before writing:
 
 ```bash
-cd my-project
-ash add java -p              # Install to ./.claude/skills
-ash add --all -p             # Install ALL skills to project
+ash snapshot restore user-skills.ash-snapshot
+ash snapshot restore user-skills.ash-snapshot --apply
+ash snapshot verify user-skills.ash-snapshot
 ```
 
-**Supported IDE Bridges**:
-![Cursor](https://img.shields.io/badge/Cursor-Supported-blue?logo=cursor&logoColor=white)
-![Windsurf](https://img.shields.io/badge/Windsurf-Supported-blueviolet)
-![TRAE](https://img.shields.io/badge/TRAE-Supported-00a1ff)
-![Antigravity](https://img.shields.io/badge/Antigravity-Supported-4285F4?logo=google)
-![Copilot](https://img.shields.io/badge/Copilot-Supported-black?logo=github)
+Snapshots include only top-level Skills already present in `~/.agents/skills`.
+Top-level Skill symlinks are materialized as portable directories. `.env`,
+`.git`, `.local`, `node_modules`, Python bytecode, and nested symlinks are omitted
+and counted. Restore creates only missing Skills, leaves identical Skills alone,
+and refuses the whole write when any same-name destination differs.
 
+## Doctor and repair boundaries
 
-### 5. CLI Command Reference 🆕
+`ash doctor` does not check whether Skills are synchronized to any Agent. It
+audits only:
 
-| Command | Description | Usage Example |
-| :--- | :--- | :--- |
-| **`init`** | **Initialize ASH Environment**. Prepares `~/.agents/skills`, ASH state, and detected client roots. | `ash init` |
-| **`list`** | **List Available Skills**. Shows names, categories, and paths of all skills. | `ash list` (Alias: `ls`) |
-| **`add`** | **Install & Distribute**. Symlinks skills to IDEs. Supports local names or GitHub URLs. | `ash add <name>`<br>`ash add <GitHub_URL>`<br>`ash add --all` (Install all) |
-| **`info`** | **View Skill Details**. Shows metadata, descriptions, and prompt previews. | `ash info <name>` |
-| **`search`** | **Search Skills**. Search through names and descriptions using keywords. | `ash search <keyword>` |
-| **`status`** | **Check Deployment**. Shows skill counts per IDE. Supports detailed IDE mapping. | `ash status`<br>`ash status --full`<br>`ash status cursor` |
-| **`create`** | **Create a User Skill**. Scaffolds `SKILL.md` and `agents/openai.yaml` directly in the universal Agents library. | `ash create review-release --description "Review release readiness and evidence."` |
-| **`inventory`** | **Unified Inventory**. Aggregates ASH, Agents lock, Codex Store, system, and plugin Skills. | `ash inventory`<br>`ash inventory --json` |
-| **`doctor`** | **Health Audit**. Checks metadata, links, locks, ownership conflicts, and generated artifacts. | `ash doctor`<br>`ash doctor --verbose` |
-| **`repair`** | **Safe One-click Repair**. Dry-runs by default; `--apply` reconciles deterministic links and opted-in Codex user Skill migrations. | `ash repair`<br>`ash repair --apply` |
-| **`rollback`** | **Transaction Rollback**. Validates link targets and file hashes before restoring anything. | `ash rollback latest`<br>`ash rollback latest --apply` |
-| **`catalog`** | **Generate Catalog**. Print, verify, or write the local ASH Skill catalog. | `ash catalog`<br>`ash catalog --write` |
-| **`package`** | **Deterministic Packaging**. Builds reproducible `.skill` archives and excludes `.env`. | `ash package pdf`<br>`ash package --all` |
-| **`uninstall`**| **Remove Links**. Removes symlinks from IDEs without deleting source files. | `ash uninstall <name>`<br>`ash uninstall --all` |
-| **`clean`** | **Wipe IDE Directory**. Clears all skill links from one or all IDEs. | `ash clean <ide>`<br>`ash clean --all` |
-| **`sync`** | **Repository Sync**. Pull updates and add only missing bundled Skills to the universal library. | `ash sync` |
+- `SKILL.md` frontmatter, names, descriptions, size, and duplicate declarations;
+- broken top-level links in `~/.agents/skills`;
+- missing entries recorded by `~/.agents/.skill-lock.json`;
+- existing package drift;
+- hard-coded legacy `~/.codex/skills` paths;
+- references to removed ASH v1 commands inside user Skill documentation;
+- ASH's marker-delimited user-Skill guidance in `~/.codex/AGENTS.md`.
 
----
+`ash repair` does not rewrite Skill instructions. It only writes, when configured,
+ASH's own marker block in Codex `AGENTS.md`.
+Repairs are dry-run by default, transactional, and rollback-safe.
 
-## 🩺 Skill Control Plane and Safe Repair
+## Configuration
 
-ASH treats `~/.agents/skills` as the only universal library and activation root. Real directories and top-level Skill symlinks are both supported. Cursor, Claude, TRAE, and other client-specific roots are reconciliation targets. The default policy transactionally migrates user-installed Codex Store and manual Codex-root Skills into Agents, while Codex system and plugin Skills remain read-only external sources. It can also maintain one marker-delimited instruction block in `$CODEX_HOME/AGENTS.md`, teaching new Codex tasks to create user Skills through ASH. `~/.ash` stores only control-plane state, catalogs, packages, and recoverable transactions.
+ASH v2 uses `ash-control.json` schema version 2:
 
-On upgrade, a mutating command discovers legacy Skills recursively and copies only missing names into the standard flat layout; existing Agents entries are never overwritten. ASH no longer loads `~/.ash/skills`. Review same-name conflicts before archiving it.
+```json
+{
+  "schema_version": 2,
+  "library": {
+    "path": "~/.agents/skills",
+    "exclude": []
+  },
+  "policies": {
+    "codex_global_guidance": "manage"
+  },
+  "sources": {
+    "agents_lock": "~/.agents/.skill-lock.json"
+  },
+  "output": {
+    "state_dir": "~/.agents/.ash/state/control-plane",
+    "packages": "~/.agents/.ash/packages"
+  }
+}
+```
+
+Legacy `targets`, `codex_user_skills`, `codex_root`, `codex_store_lock`, and
+`plugin_cache` settings are rejected with a migration message rather than being
+silently ignored.
+
+## Development
 
 ```bash
-ash inventory             # Inspect every known source and owner
-ash create my-skill --description "What it does and when to use it"
-ash doctor                # Read-only audit, including on first run
-ash repair                # Preview deterministic safe actions
-ash repair --apply        # Apply actions and record a rollback transaction
-ash repair --scope codex-guidance          # Preview only AGENTS.md guidance
-ash repair --scope codex-guidance --apply  # Apply without reconciling other targets
-ash rollback latest       # Preview the latest rollback
-ash rollback latest --apply
+npm test
+npm pack --dry-run
 ```
 
-Repair never overwrites regular files, real directories, or valid links owned by another source. With `policies.codex_user_skills` set to `migrate-to-agents`, it moves only user-installed Codex-root Skills, unregisters matching Store entries, and records a reversible transaction. With `policies.codex_global_guidance` set to `manage`, it updates only ASH's marked block in Codex `AGENTS.md`; a non-empty `AGENTS.override.md` blocks the repair. Codex `.system` Skills and plugin caches are never moved. Configure policies, sources, targets, and outputs in [`ash-control.json`](ash-control.json); see [`doc/SKILL_CONTROL_PLANE.md`](doc/SKILL_CONTROL_PLANE.md) for the complete design.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for Skill and code contribution guidance.
 
----
+## License
 
-## 🚀 Ecosystem Integration
-**ASH directly shares the standard Agents library with the Vercel ecosystem.**
-Vercel's official `npx skills` tool downloads Skills to `~/.agents/skills`. ASH discovers them in place—there is no import copy—and can safely bridge them to your client-specific IDE directories.
-
-1. **Download**: Use Vercel's tool to grab a skill:
-   ```bash
-   npx skills add user/repo
-   ```
-2. **Audit and bridge**: Preview conflicts, then reconcile safe links:
-   ```bash
-   ash doctor
-   ash repair --apply
-   ```
-   `repair` skips regular files, real directories, and links owned by another source.
-
-### 💡 Recommended Resources
-Looking for high-quality skills? Check out **[Skill Hub CN](https://www.skill-cn.com)**.
-Chinese users can also discover more skills through **Skills宝**: https://skilery.com
-It curates excellent skills, such as the official Anthropic Frontend Design skill:
-
-```bash
-# Example: Install Anthropic's frontend-design skill
-npx skills add https://github.com/anthropics/skills --skill frontend-design
-
-# Let ASH distribute it
-ash sync
-```
-
-### 6. Search & Status
-```bash
-ash search web            # Keyword search
-ash status                # Check current installation map
-```
-
-### 7. Clean & Reset
-Instantly clear skill links.
-
-```bash
-ash clean cursor          # Clear Cursor skills only
-ash clean --all           # Clear ALL IDE skills
-```
-
-### 8. Uninstall
-Remove specific symlinks.
-
-```bash
-ash uninstall pdf         # Uninstall specific skill
-ash uninstall --all       # (Same as clean --all)
-```
-
-### 9. Sync Skills
-Pull latest skills to Global Home.
-
-```bash
-ash sync
-```
-
-### 10. CLI Maintenance
-Manage the tool itself.
-
-```bash
-# Upgrade to the latest version
-npm update -g askill
-
-# Check current installed version
-npm list -g askill
-
-# Check latest available version on NPM
-npm view askill version
-
-# Uninstall CLI tool
-npm uninstall -g askill
-```
-
----
-
-## 📂 System Architecture
-
-- **ASH Home**: `~/.ash` (or `$env:USERPROFILE\.ash`)
-- **Universal Skills Library**: `~/.agents/skills/`
-- **ASH State and Outputs**: `~/.ash/state`, `~/.ash/CATALOG.md`, and `~/.ash/packages`
-- **Client Links**: Detected IDE roots link to entries in the universal library.
-
-## 🧩 UX Highlights
-
-- **Smart Suggestions**: Type a typo (e.g., `ash intall`) and get a "Did you mean?" hint.
-- **Transparent Feedback**: Detailed IDE-level reports for batch operations.
-
-## 🤝 Supported Platforms
-
-| Platform | Target Path | Status |
-| :--- | :--- | :--- |
-| ![Antigravity](https://img.shields.io/badge/Antigravity-4285F4?style=flat-square&logo=google&logoColor=white) | `~/.agent/skills/` | ✅ |
-| ![Cursor](https://img.shields.io/badge/Cursor-000000?style=flat-square&logo=cursor&logoColor=white) | `~/.cursor/skills/` | ✅ |
-| ![TRAE](https://img.shields.io/badge/TRAE-00A1FF?style=flat-square) | `~/.trae/skills/` | ✅ |
-| ![Windsurf](https://img.shields.io/badge/Windsurf-5D3FD3?style=flat-square) | `~/.windsurf/skills/` | ✅ |
-| ![Copilot](https://img.shields.io/badge/Copilot-171515?style=flat-square&logo=github&logoColor=white) | `~/.copilot/skills/` | ✅ |
-| ![Claude](https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=anthropic&logoColor=white) | `~/.claude/skills/` | ✅ |
-
-## 🛠️ Contributing
-
-Got a killer prompt or a useful rule? We'd love to have it!
-
-1. Fork the repository.
-2. Create your skill directory in `skills/<name>/`.
-3. Add `SKILL.md` (content) and optional `scripts/`.
-4. Submit a Pull Request.
-
-## 📄 License
-
-MIT © Tiandee
+MIT
