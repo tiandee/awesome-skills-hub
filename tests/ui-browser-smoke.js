@@ -107,7 +107,7 @@ async function main() {
         plan_id: 'browser-removal-plan', name: removalCandidate.name, mode: 'quarantine', ownership: 'manual',
         path: '/tmp/' + removalCandidate.name, file_count: 3, total_bytes: 2048, recoverable: true,
         confirmation_name: removalCandidate.name,
-        actions: [{ kind: 'skill_quarantine', path: '/tmp/' + removalCandidate.name, description: '将用户 Skill 移入 ASH 可恢复区 /tmp/' + removalCandidate.name }],
+        actions: [{ kind: 'skill_quarantine', path: '/tmp/' + removalCandidate.name, description: '将用户 Skill 移入 ASH 回收站 /tmp/' + removalCandidate.name }],
       }) });
     });
     await removalRow.locator('.skill-actions-trigger').click();
@@ -115,7 +115,7 @@ async function main() {
     assert.strictEqual(await removalRow.locator('.skill-actions-menu [role="menuitem"]').count(), 2);
     await removalRow.locator('[data-action="preview-skill-removal"]').click();
     await page.locator('#confirmation-modal:not([hidden])').waitFor();
-    assert((await page.locator('#modal-actions').textContent()).includes('可恢复区'));
+    assert((await page.locator('#modal-actions').textContent()).includes('回收站'));
     assert.strictEqual(await page.locator('#modal-confirm-name-field').isVisible(), true);
     assert.strictEqual(await page.locator('#modal-confirm-check-field').isVisible(), false);
     assert.strictEqual(await page.locator('#modal-apply').isDisabled(), true);
@@ -193,6 +193,53 @@ async function main() {
     await page.unroute('**/api/updates/source/popular/apply');
     const tableHeadText = await page.locator('.table-head').textContent();
     ['名称', '体量', '状态', '健康', '操作'].forEach(function label(value) { assert(tableHeadText.includes(value)); });
+    const statusContract = await page.evaluate(async function inspectStatusLabels() {
+      const overview = await fetch('/api/overview').then(function json(response) { return response.json(); });
+      const labels = Array.from(new Set(overview.skills.map(function label(skill) { return skill.update.display.label; })));
+      const weeklyReport = overview.skills.find(function matching(skill) { return skill.name === 'weekly-report'; });
+      const readOnly = overview.skills.find(function matching(skill) { return skill.update.status === 'read-only-source'; });
+      return {
+        labels,
+        lengths: labels.map(function length(label) { return Array.from(label).length; }),
+        weekly_report: weeklyReport && weeklyReport.update.display.label,
+        read_only: readOnly && { name: readOnly.name, library_id: readOnly.library_id },
+      };
+    });
+    assert(statusContract.lengths.every(function four(length) { return length === 4; }));
+    assert.strictEqual(statusContract.weekly_report, '用户链接');
+    await page.locator('#skill-search').fill('weekly-report');
+    const weeklyReportRow = page.locator('#skill-list .skill-row[data-skill="weekly-report"]');
+    await weeklyReportRow.waitFor();
+    const weeklyReportStatus = (await weeklyReportRow.locator('.update-pill').textContent()).replace(/^更新：/, '').trim();
+    assert.strictEqual(weeklyReportStatus, '用户链接');
+    await weeklyReportRow.locator('.skill-actions-trigger').click();
+    assert.strictEqual(await weeklyReportRow.locator('[data-action="preview-skill-unlink"]').textContent(), '解除链接');
+    assert.strictEqual(await weeklyReportRow.locator('[data-action="preview-skill-removal"]').textContent(), '移入回收站');
+    await weeklyReportRow.locator('[data-action="preview-skill-unlink"]').click();
+    await page.locator('#confirmation-modal:not([hidden])').waitFor();
+    assert((await page.locator('#modal-title').textContent()).includes('解除用户链接'));
+    assert((await page.locator('#modal-actions').textContent()).includes('不会移入回收站'));
+    await page.locator('#modal-cancel').click();
+    await weeklyReportRow.locator('.skill-row-select').click();
+    await page.locator('#skill-detail .detail-head h2', { hasText: 'weekly-report' }).waitFor();
+    await page.locator('#skill-detail [data-action="preview-skill-removal"]').click();
+    await page.locator('#confirmation-modal:not([hidden])').waitFor();
+    assert((await page.locator('#modal-title').textContent()).includes('移入回收站'));
+    await page.locator('#modal-cancel').click();
+    await page.locator('#skill-search').fill('');
+    if (statusContract.read_only) {
+      await page.locator('#skill-search').fill(statusContract.read_only.name);
+      const readOnlyRow = page.locator('#skill-list .skill-row[data-skill="' + statusContract.read_only.name + '"]');
+      await readOnlyRow.waitFor();
+      assert((await readOnlyRow.locator('.update-pill').textContent()).includes('只读来源'));
+      await readOnlyRow.locator('.skill-actions-trigger').click();
+      await readOnlyRow.locator('[data-action="preview-skill-link"]').click();
+      await page.locator('#confirmation-modal:not([hidden])').waitFor();
+      assert((await page.locator('#modal-title').textContent()).includes('链接到用户库'));
+      assert((await page.locator('#modal-actions').textContent()).includes('链接只读 Skill 到用户库'));
+      await page.locator('#modal-cancel').click();
+      await page.locator('#skill-search').fill('');
+    }
     assert.strictEqual((await page.locator('body').textContent()).includes('SIGNAL'), false);
     const healthSamples = await page.evaluate(async function currentHealthSamples() {
       const overview = await fetch('/api/overview').then(function json(response) { return response.json(); });
@@ -265,7 +312,7 @@ async function main() {
     await page.locator('#skill-list .skill-row[data-skill="lark-doc"]').click();
     await page.locator('#skill-detail .detail-head h2', { hasText: 'lark-doc' }).waitFor();
     await page.locator('#skill-detail .update-source').waitFor();
-    assert(/待检查|最新|可更新|待接管|待重建|外部管理|异常/.test(await page.locator('#skill-detail .update-source').textContent()));
+    assert(/等待检查|已是最新|发现更新|等待接管|等待重建|用户链接|只读来源|状态异常/.test(await page.locator('#skill-detail .update-source').textContent()));
     await page.screenshot({ path: '/tmp/ash-ui-update-detail.png', fullPage: true });
 
     const updateCandidate = await page.evaluate(async function findUpdateCandidate() {
@@ -370,7 +417,7 @@ async function main() {
     await page.getByRole('link', { name: /维护/ }).click();
     assert((await page.locator('#update-card').textContent()).includes('检查用户 Skill 更新'));
     assert((await page.locator('#update-rollback-card').textContent()).includes('回滚最近 Skill 更新'));
-    assert((await page.locator('#removal-rollback-card').textContent()).includes('可恢复区管理'));
+    assert((await page.locator('#removal-rollback-card').textContent()).includes('回收站管理'));
     const recoveryRow = page.locator('#removal-rollback-card .removal-row').first();
     if (await recoveryRow.count()) {
       const recoveryName = (await recoveryRow.locator('.removal-copy strong').textContent()).trim();

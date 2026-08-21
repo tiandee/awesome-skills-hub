@@ -252,7 +252,7 @@ async function testServiceSafety() {
     assert.strictEqual(overview.source_insights.counts.stale, 1);
     assert.strictEqual(overview.retention.action_count, 1);
     const alphaUpdate = overview.skills.find(function alpha(skill) { return skill.name === 'alpha'; }).update;
-    assert.strictEqual(alphaUpdate.display.label, '待检查');
+    assert.strictEqual(alphaUpdate.display.label, '等待检查');
     assert.strictEqual(alphaUpdate.source_origin.label, 'GitHub 来源');
     assert.deepStrictEqual(alphaUpdate.source_links.map(function kind(item) { return item.kind; }), ['github-repository', 'github-skill']);
     assert.strictEqual(alphaUpdate.source_links[0].url, 'https://github.com/example/ui-skills');
@@ -284,13 +284,13 @@ async function testServiceSafety() {
     assert.strictEqual(maliciousCatalogUpdate.source_origin.label, 'GitHub 来源');
     assert.strictEqual(maliciousCatalogUpdate.source_links.some(function unsafe(item) { return item.kind === 'skills-sh'; }), false);
     removeTree(maliciousCatalogHistory);
-    assert.strictEqual(overview.skills.find(function beta(skill) { return skill.name === 'beta'; }).update.display.label, '待接管');
+    assert.strictEqual(overview.skills.find(function beta(skill) { return skill.name === 'beta'; }).update.display.label, '等待接管');
     assert.strictEqual(overview.skills.find(function beta(skill) { return skill.name === 'beta'; }).health.label, '1 警告');
     assert.strictEqual(overview.skills.find(function alpha(skill) { return skill.name === 'alpha'; }).health.level, 'clear');
     assert.strictEqual(overview.skills.find(function alpha(skill) { return skill.name === 'alpha'; }).access.label, '用户库 · 可写');
     assert.strictEqual(service.skillDetail('alpha').files[0], 'SKILL.md');
     assert.strictEqual(service.skillDetail('beta').health.label, '1 警告');
-    assert.strictEqual(service.skillDetail('beta').update.display.label, '待接管');
+    assert.strictEqual(service.skillDetail('beta').update.display.label, '等待接管');
     const safeLockContent = fs.readFileSync(current.lockPath, 'utf8');
     [
       { sourceUrl: 'http://github.com/example/ui-skills.git' },
@@ -327,13 +327,13 @@ async function testServiceSafety() {
     const checkedUpdates = await service.checkUpdates();
     assert.strictEqual(checkedUpdates.summary.update_available, 1);
     assert.strictEqual(service.overview().skills.find(function alpha(skill) { return skill.name === 'alpha'; }).update.status, 'update-available');
-    assert.strictEqual(service.overview().skills.find(function alpha(skill) { return skill.name === 'alpha'; }).update.display.label, '可更新');
+    assert.strictEqual(service.overview().skills.find(function alpha(skill) { return skill.name === 'alpha'; }).update.display.label, '发现更新');
     const persistedCheck = path.join(current.settings.stateDir, 'update-check.json');
     assert.strictEqual(fs.existsSync(persistedCheck), true);
     const restartedService = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient });
     const restartedAlpha = restartedService.skillDetail('alpha').update;
     assert.strictEqual(restartedAlpha.status, 'update-available');
-    assert.strictEqual(restartedAlpha.display.label, '可更新');
+    assert.strictEqual(restartedAlpha.display.label, '发现更新');
     const restartedPreview = await restartedService.previewSkillUpdate({ name: 'alpha' });
     assert(restartedPreview.plan_id);
     const lockBeforeCacheValidation = fs.readFileSync(current.lockPath, 'utf8');
@@ -355,7 +355,7 @@ async function testServiceSafety() {
     assert.strictEqual(updated.status, 'updated');
     assert.strictEqual(service.skillDetail('alpha').description, 'Alpha UI workflow, updated upstream.');
     assert.strictEqual(service.skillDetail('alpha').update.status, 'up-to-date');
-    assert.strictEqual(service.skillDetail('alpha').update.display.label, '最新');
+    assert.strictEqual(service.skillDetail('alpha').update.display.label, '已是最新');
     const updateRollback = service.previewSkillUpdateRollback();
     const updateRolledBack = service.applySkillUpdateRollback({ rollback_id: updateRollback.rollback_id, confirm: true });
     assert.strictEqual(updateRolledBack.status, 'rolled_back');
@@ -460,7 +460,7 @@ async function testServiceSafety() {
     const historyBackedService = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient });
     const historyBackedUpdate = historyBackedService.skillDetail('beta').update;
     assert.strictEqual(historyBackedUpdate.status, 'up-to-date');
-    assert.strictEqual(historyBackedUpdate.display.label, '最新');
+    assert.strictEqual(historyBackedUpdate.display.label, '已是最新');
     assert.strictEqual(historyBackedUpdate.source_origin.label, 'skills.sh 接管');
     assert.strictEqual(historyBackedUpdate.source_links[0].url, 'https://skills.sh/example/ui-skills/beta');
     const updateHistoryRoot = path.join(current.settings.stateDir, 'updates');
@@ -698,6 +698,67 @@ async function testServiceSafety() {
   } finally {
     current.cleanup();
   }
+}
+
+function testReadOnlySourceLinkLifecycle() {
+  const current = fixture();
+  try {
+    const sourceRoot = path.join(current.root, 'link-source-root');
+    const sourceSkill = path.join(sourceRoot, 'link-only');
+    writeSkill(sourceSkill, 'link-only', 'Read-only source linking probe.');
+    const service = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const rootPreview = service.previewLibraryChange({ action: 'add', path: sourceRoot, name: 'Link source' });
+    service.applyLibraryChange({ plan_id: rootPreview.plan_id, confirm: true });
+    const observed = service.skillDetail('link-only', rootPreview.root.id);
+    assert.strictEqual(observed.update.display.label, '只读来源');
+    assert.strictEqual(observed.can_link, true);
+    assert.strictEqual(observed.can_remove, false);
+
+    const linkPreview = service.previewSkillLink({ name: 'link-only', library_id: rootPreview.root.id });
+    assert(linkPreview.actions.some(function link(item) { return item.kind === 'skill_link_create'; }));
+    assert.throws(function missingConfirmation() {
+      service.applySkillLink({ plan_id: linkPreview.plan_id, confirm: false });
+    }, function matching(error) { return error.code === 'CONFIRMATION_REQUIRED'; });
+    const freshLink = service.previewSkillLink({ name: 'link-only', library_id: rootPreview.root.id });
+    const linked = service.applySkillLink({ plan_id: freshLink.plan_id, confirm: true });
+    assert.strictEqual(linked.status, 'linked');
+    assert(fs.lstatSync(path.join(current.library, 'link-only')).isSymbolicLink());
+    assert.strictEqual(fs.realpathSync(path.join(current.library, 'link-only')), fs.realpathSync(sourceSkill));
+    assert.strictEqual(linked.skill.update.display.label, '用户链接');
+    assert.strictEqual(linked.skill.locations.length, 2);
+    assert.strictEqual(linked.skill.removal.label, '移入回收站');
+    assert.strictEqual(linked.skill.unlinking.label, '解除链接');
+    assert.strictEqual(linked.skill.can_unlink, true);
+
+    const directUnlinkPreview = service.previewSkillUnlink({ name: 'link-only', library_id: ash.MANAGED_LIBRARY_ID });
+    assert(directUnlinkPreview.actions.some(function unlink(item) { return item.kind === 'skill_link_remove'; }));
+    const directlyUnlinked = service.applySkillUnlink({ plan_id: directUnlinkPreview.plan_id, confirm: true });
+    assert.strictEqual(directlyUnlinked.status, 'unlinked');
+    assert.strictEqual(ash.lexists(path.join(current.library, 'link-only')), false);
+    assert(fs.existsSync(path.join(sourceSkill, 'SKILL.md')));
+    assert.deepStrictEqual(service.overview().removals, []);
+    assert.strictEqual(service.skillDetail('link-only', rootPreview.root.id).update.display.label, '只读来源');
+
+    const relinkPreview = service.previewSkillLink({ name: 'link-only', library_id: rootPreview.root.id });
+    service.applySkillLink({ plan_id: relinkPreview.plan_id, confirm: true });
+
+    const unlinkPreview = service.previewSkillRemoval({ name: 'link-only', library_id: ash.MANAGED_LIBRARY_ID });
+    assert.strictEqual(unlinkPreview.mode, 'unlink');
+    service.applySkillRemoval({ plan_id: unlinkPreview.plan_id, confirm: true, confirmation_name: 'link-only' });
+    assert.strictEqual(ash.lexists(path.join(current.library, 'link-only')), false);
+    assert(fs.existsSync(path.join(sourceSkill, 'SKILL.md')));
+    assert.strictEqual(service.skillDetail('link-only', rootPreview.root.id).update.display.label, '只读来源');
+
+    const restorePreview = service.previewSkillRemovalRollback();
+    const restored = service.applySkillRemovalRollback({ rollback_id: restorePreview.rollback_id, confirm: true });
+    assert.strictEqual(restored.status, 'restored');
+    assert.strictEqual(restored.skill.update.display.label, '用户链接');
+    assert(fs.existsSync(path.join(sourceSkill, 'SKILL.md')));
+    process.stdout.write('ok - read-only source links into the user library and unlinks without changing its source\n');
+  } finally { current.cleanup(); }
 }
 
 async function testPopularBatchKeepsSequentialSuccessesAndWritesLogs() {
@@ -1149,7 +1210,7 @@ async function testHttpServer() {
     assert.strictEqual(detailResponse.status, 200);
     const detail = json(detailResponse);
     assert(detail.skill_md.includes('# alpha'));
-    assert.strictEqual(detail.update.display.label, '待检查');
+    assert.strictEqual(detail.update.display.label, '等待检查');
     assert.strictEqual(detail.update.source_origin.label, 'GitHub 来源');
     assert.deepStrictEqual(detail.update.source_links.map(function kind(item) { return item.kind; }), ['github-repository', 'github-skill']);
     assert.strictEqual(detail.update.source_links[0].url, 'https://github.com/example/ui-skills');
@@ -1170,6 +1231,16 @@ async function testHttpServer() {
     });
     assert.strictEqual(forbiddenRemoval.status, 403);
     assert.strictEqual(json(forbiddenRemoval).error.code, 'SESSION_REQUIRED');
+    const forbiddenLink = await request(running.url + 'api/skills/link/preview', {
+      method: 'POST', body: { name: 'gamma', library_id: 'observed' },
+    });
+    assert.strictEqual(forbiddenLink.status, 403);
+    assert.strictEqual(json(forbiddenLink).error.code, 'SESSION_REQUIRED');
+    const forbiddenUnlink = await request(running.url + 'api/skills/unlink/preview', {
+      method: 'POST', body: { name: 'alpha', library_id: ash.MANAGED_LIBRARY_ID },
+    });
+    assert.strictEqual(forbiddenUnlink.status, 403);
+    assert.strictEqual(json(forbiddenUnlink).error.code, 'SESSION_REQUIRED');
     const forbiddenRemovalPurge = await request(running.url + 'api/skills/removal/purge/preview', {
       method: 'POST', body: { transaction_id: 'unknown' },
     });
@@ -1370,6 +1441,7 @@ async function testHttpServer() {
 
     const customRoot = path.join(current.root, 'http-team-skills');
     writeSkill(path.join(customRoot, 'gamma'), 'gamma', 'Gamma from the HTTP scan root.');
+    writeSkill(path.join(customRoot, 'http-link-only'), 'http-link-only', 'HTTP read-only link probe.');
     const rootPreviewResponse = await request(running.url + 'api/libraries/preview', {
       method: 'POST', headers, body: { action: 'add', path: customRoot, name: 'HTTP team skills' },
     });
@@ -1383,6 +1455,30 @@ async function testHttpServer() {
     const customDetail = await request(running.url + 'api/skills/' + encodeURIComponent(rootPreview.root.id) + '/gamma');
     assert.strictEqual(customDetail.status, 200, customDetail.text);
     assert.strictEqual(json(customDetail).library_mode, 'observe');
+    const linkPreviewResponse = await request(running.url + 'api/skills/link/preview', {
+      method: 'POST', headers, body: { name: 'http-link-only', library_id: rootPreview.root.id },
+    });
+    assert.strictEqual(linkPreviewResponse.status, 200, linkPreviewResponse.text);
+    assert(json(linkPreviewResponse).actions.some(function link(item) { return item.kind === 'skill_link_create'; }));
+    const linkAppliedResponse = await request(running.url + 'api/skills/link/apply', {
+      method: 'POST', headers, body: { plan_id: json(linkPreviewResponse).plan_id, confirm: true },
+    });
+    assert.strictEqual(linkAppliedResponse.status, 200, linkAppliedResponse.text);
+    assert.strictEqual(json(linkAppliedResponse).status, 'linked');
+    assert.strictEqual(json(linkAppliedResponse).skill.update.display.label, '用户链接');
+    assert(fs.lstatSync(path.join(current.library, 'http-link-only')).isSymbolicLink());
+    assert(fs.existsSync(path.join(customRoot, 'http-link-only', 'SKILL.md')));
+    const unlinkPreviewResponse = await request(running.url + 'api/skills/unlink/preview', {
+      method: 'POST', headers, body: { name: 'http-link-only', library_id: ash.MANAGED_LIBRARY_ID },
+    });
+    assert.strictEqual(unlinkPreviewResponse.status, 200, unlinkPreviewResponse.text);
+    const unlinkAppliedResponse = await request(running.url + 'api/skills/unlink/apply', {
+      method: 'POST', headers, body: { plan_id: json(unlinkPreviewResponse).plan_id, confirm: true },
+    });
+    assert.strictEqual(unlinkAppliedResponse.status, 200, unlinkAppliedResponse.text);
+    assert.strictEqual(json(unlinkAppliedResponse).status, 'unlinked');
+    assert.strictEqual(ash.lexists(path.join(current.library, 'http-link-only')), false);
+    assert(fs.existsSync(path.join(customRoot, 'http-link-only', 'SKILL.md')));
 
     const createPreviewResponse = await request(running.url + 'api/skills/create/preview', {
       method: 'POST', headers, body: { name: 'delta', description: 'Delta from the page API.' },
@@ -1520,6 +1616,7 @@ async function testHttpServer() {
 
 async function main() {
   await testServiceSafety();
+  await testReadOnlySourceLinkLifecycle();
   await testSingleSourceFailureRedactsThrownUiError();
   await testPopularBatchKeepsSequentialSuccessesAndWritesLogs();
   await testPopularBatchReturnsPartialAndContinues();
@@ -1529,7 +1626,7 @@ async function main() {
   await testPopularApplyProgressIsVisibleWhileItemRuns();
   await testPopularPreviewReportsSkippedItemsWithoutSecrets();
   await testHttpServer();
-  process.stdout.write('\n10/10 UI tests passed\n');
+  process.stdout.write('\n11/11 UI tests passed\n');
 }
 
 main().catch(function failed(error) {

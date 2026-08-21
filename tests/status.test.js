@@ -8,7 +8,7 @@ const ash = require('../lib/control-plane');
 const tests = [];
 function test(name, callback) { tests.push({ name, callback }); }
 
-test('nine raw update codes collapse into exactly seven display states', function run() {
+test('nine raw update codes use four-character labels across seven behavior groups', function run() {
   const statuses = [
     'checkable', 'up-to-date', 'update-available', 'unmanaged', 'baseline-missing',
     'repository-linked', 'read-only-source', 'source-unavailable', 'missing',
@@ -16,10 +16,11 @@ test('nine raw update codes collapse into exactly seven display states', functio
   const displays = statuses.map(ash.presentUpdateStatus);
   assert.strictEqual(new Set(displays.map(function key(item) { return item.key; })).size, 7);
   assert.deepStrictEqual(displays.map(function label(item) { return item.label; }), [
-    '待检查', '最新', '可更新', '待接管', '待重建', '外部管理', '外部管理', '异常', '异常',
+    '等待检查', '已是最新', '发现更新', '等待接管', '等待重建', '用户链接', '只读来源', '状态异常', '状态异常',
   ]);
+  assert(displays.every(function fourCharacters(item) { return Array.from(item.label).length === 4; }));
   assert.strictEqual(ash.presentUpdateStatus('future-state').key, 'error');
-  assert.strictEqual(ash.presentUpdateStatus('future-state').label, '异常');
+  assert.strictEqual(ash.presentUpdateStatus('future-state').label, '状态异常');
 });
 
 test('health summary reports only the highest severity while retaining all counts', function run() {

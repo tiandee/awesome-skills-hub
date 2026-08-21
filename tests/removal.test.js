@@ -117,6 +117,48 @@ function testSymlinkRemovalNeverTouchesSource() {
   } finally { current.cleanup(); }
 }
 
+function testReadOnlySourceCanLinkAndUnlinkWithoutChangingSource() {
+  const current = fixture();
+  try {
+    const source = path.join(current.root, 'scan-root', 'linked-from-scan');
+    const destination = path.join(current.settings.libraryRoot, 'linked-from-scan');
+    writeSkill(source, 'linked-from-scan');
+    const stale = ash.buildSkillLinkPlan(current.settings, { name: 'linked-from-scan', source_path: source });
+    fs.appendFileSync(path.join(source, 'SKILL.md'), 'changed after preview\n', 'utf8');
+    assert.throws(function changedSource() { ash.applySkillLink(current.settings, stale); }, /preview is stale/);
+    assert.strictEqual(ash.lexists(destination), false);
+
+    const plan = ash.buildSkillLinkPlan(current.settings, { name: 'linked-from-scan', source_path: source });
+    const linked = ash.applySkillLink(current.settings, plan);
+    assert.strictEqual(linked, destination);
+    assert(fs.lstatSync(destination).isSymbolicLink());
+    assert.strictEqual(fs.realpathSync(destination), fs.realpathSync(source));
+    assert(fs.existsSync(path.join(source, 'SKILL.md')));
+    assert.throws(function occupiedDestination() {
+      ash.buildSkillLinkPlan(current.settings, { name: 'linked-from-scan', source_path: source });
+    }, /already contains/);
+
+    const unlink = ash.buildSkillUnlinkPlan(current.settings, { name: 'linked-from-scan' });
+    assert(unlink.actions.some(function unlinkAction(item) { return item.kind === 'skill_link_remove'; }));
+    ash.applySkillUnlink(current.settings, unlink);
+    assert.strictEqual(ash.lexists(destination), false);
+    assert(fs.existsSync(path.join(source, 'SKILL.md')));
+    assert.deepStrictEqual(ash.listSkillRemovals(current.settings), []);
+
+    ash.applySkillLink(
+      current.settings,
+      ash.buildSkillLinkPlan(current.settings, { name: 'linked-from-scan', source_path: source }),
+    );
+
+    const removal = ash.buildSkillRemovalPlan(current.settings, { name: 'linked-from-scan' });
+    assert.strictEqual(removal.mode, 'unlink');
+    ash.applySkillRemoval(current.settings, removal);
+    assert.strictEqual(ash.lexists(destination), false);
+    assert(fs.existsSync(path.join(source, 'SKILL.md')));
+    process.stdout.write('ok - read-only source links and unlinks without changing its source directory\n');
+  } finally { current.cleanup(); }
+}
+
 function testPermanentPurgeIsExactAndStaleSafe() {
   const current = fixture();
   try {
@@ -181,9 +223,10 @@ function main() {
   testManualRemovalIsRecoverableAndStaleSafe();
   testInstallerRemovalPreservesUnrelatedLockEntries();
   testSymlinkRemovalNeverTouchesSource();
+  testReadOnlySourceCanLinkAndUnlinkWithoutChangingSource();
   testPermanentPurgeIsExactAndStaleSafe();
   testBulkPurgeRequiresFreshCompleteRecoverySet();
-  process.stdout.write('\n5/5 removal tests passed\n');
+  process.stdout.write('\n6/6 removal tests passed\n');
 }
 
 main();

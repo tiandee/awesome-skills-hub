@@ -106,8 +106,9 @@ the write to be rejected so the user must review a fresh preview.
 ### Status presentation
 
 Internal update codes remain stable for API and transaction decisions. The page
-adds a presentation layer that collapses them into seven user states: `待检查`,
-`最新`, `可更新`, `待接管`, `待重建`, `外部管理`, and `异常`. Raw codes are never
+adds a presentation layer that collapses them into concise four-character user
+states: `等待检查`, `已是最新`, `发现更新`, `等待接管`, `等待重建`, `用户链接`,
+`只读来源`, and `状态异常`. Raw codes are never
 replaced or used through translated labels.
 
 Health is a separate dimension. A Skill row always keeps its update state and may
@@ -129,6 +130,14 @@ The UI may persist additional scan roots in
 managed libraries: ASH discovers and displays their top-level Skills but never
 repairs, creates, restores, edits, or deletes content there. Cross-root duplicate
 names are reported and every Skill detail retains its source identity.
+An individual read-only Skill may be linked into the managed user library after
+preview and confirmation. Apply revalidates the configured scan-root identity,
+the complete source digest, and the empty destination before creating a top-level
+symlink. It never copies or edits source content. The resulting `用户链接` entry can
+be directly unlinked as the reverse operation; that removes only the managed
+symlink, preserves the source, and creates no recovery record. A separate
+`移入回收站` action keeps the previous recoverable-removal semantics for either
+directories or links.
 Top-level entries that resolve through symlinks to the same physical Skill are
 collapsed into one record with multiple locations. Duplicate-name warnings are
 reserved for different real paths, so a canonical Agents entry and its source

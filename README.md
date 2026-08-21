@@ -116,21 +116,24 @@ page. The page shows the configured user library, Skill metadata and source,
 Doctor findings, repair plans, and the latest rollback transaction. It can also:
 
 - add and remove persistent read-only scan roots without touching their files;
+- preview and link a read-only Skill into the managed user library without
+  copying or modifying its source, then directly reverse that operation with
+  Unlink without creating a recovery record;
 - collapse symlinked entries that resolve to the same physical Skill while
   retaining every location, and report only same-name/different-content roots;
 - create standard Skill scaffolds in the managed user library;
 - update a managed Skill description through a transactional, rollback-safe write;
 - package any selected Skill into the configured package output;
-- preview and remove a managed Skill from each row: real directories enter the
-  ASH recovery area, symlinks lose only the managed entry without touching their
-  source, and installer-lock state changes in the same transaction; Maintenance
-  lists every recoverable entry for per-item restore or previewed, name-confirmed
+- preview and move a managed Skill into the recycle bin from each row: real
+  directories or links enter an ASH recycle-bin transaction without touching a
+  linked source, and installer-lock state changes in the same transaction; Maintenance
+  lists every recycle-bin entry for per-item restore or previewed, name-confirmed
   permanent deletion, plus a previewed delete-all action gated by an exact typed
   phrase containing the current recovery count;
 - create, verify, and additively restore page-managed user-library snapshots;
 - open the local snapshot directory directly from the page without applying or deleting anything;
 - show source coverage, unavailable sources, missing baselines, and stale provenance;
-- present seven concise update states while keeping errors, warnings, and info as
+- present eight concise four-character update states while keeping errors, warnings, and info as
   an independent health dimension;
 - preview and prune obsolete or expired transaction history while protecting the
   current safe rollback for each transaction type;
@@ -173,7 +176,7 @@ authoritative. The server refuses non-loopback binding and does not enable CORS.
 Repository sync, untracked third-party installation, raw instruction editing,
 and bypassing recovery to permanently delete the active user library remain
 outside the page. Page removal is restricted to the managed user library and
-always enters a recoverable transaction first; only recovery copies can then be
+always enters a recycle-bin transaction first; only recycle-bin copies can then be
 permanently deleted through a separate preview and typed confirmation.
 Observe-only roots can only be removed as whole scan references.
 
