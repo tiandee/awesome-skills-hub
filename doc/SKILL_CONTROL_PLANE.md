@@ -177,6 +177,11 @@ validate the candidate before issuing a plan: if portable content already matche
 apply writes only the standard 40-character Git tree baseline; otherwise the plan
 shows the same file-level adoption diff as an update. The source record, adopted
 content, and previous lock state share the normal update transaction and rollback.
+A source-locked Skill can also retarget its GitHub upstream to a different
+repository or path. Retarget requires an explicit new skills.sh URL or GitHub
+source, refuses the current identity, and uses the same preview, confirmation,
+transaction, and rollback gates. `.env` and `.local` stay local. The completed
+`retarget-source` transaction keeps the catalog identity for the new upstream.
 
 The page presents acquisition and update provenance separately. `skills.sh` is the
 takeover/catalog channel; GitHub is the code upstream used for checks and updates.
@@ -192,6 +197,31 @@ transaction below `state/control-plane/updates`. Rollback verifies the updated
 Skill, installer lock, and preserved `.env`/`.local`/nested-link state before
 restoring anything. Read-only scan roots, repository symlinks, and manual Skills
 are never overwritten by this workflow.
+
+## Recoverable page removal
+
+Removal is a page/API feature backed by `lib/control-plane/removal.js`; it does
+not add a CLI command. It is available only for top-level entries in the managed
+user library. Preview records the complete entry digest, size, entry type, and
+the target installer-lock entry. Apply rescans that state before writing.
+
+Real directories are moved below `state/control-plane/removals/<transaction>`.
+For a top-level symlink, the transaction moves only the link and never changes
+the linked source directory. If a v3 installer-lock entry exists, only that
+named entry is removed while unrelated concurrent lock entries are preserved.
+Any apply failure attempts to restore both the managed entry and lock state.
+The Maintenance page lists every valid recovery transaction with its removal
+time, entry type, file count, and size. Any item can be restored after the
+recovery content, empty destination, and lock entry are revalidated. Permanent
+deletion is a separate one-time preview: it identifies exactly one transaction
+directory, shows the target and size, requires the full Skill name, and hashes
+the complete transaction directory again before deleting it. Delete-all builds
+the same plans for the complete current recovery set, requires an exact phrase
+such as `永久删除全部 4 个 Skill`, and invalidates the entire preview if any item is
+added, restored, changed, or removed before confirmation. Removal
+transactions join the normal retention policy, while the current restorable
+transaction remains protected from automatic cleanup. Observe-only roots expose
+scan-root management instead of per-Skill removal.
 
 ## Initialization and sync
 

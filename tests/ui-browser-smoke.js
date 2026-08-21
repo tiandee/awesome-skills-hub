@@ -83,7 +83,116 @@ async function main() {
 
     await page.getByRole('link', { name: /Skill 库/ }).click();
     await page.getByRole('button', { name: '检查更新' }).waitFor();
-    assert.deepStrictEqual(await page.locator('.table-head > span').allTextContents(), ['名称', '体量', '更新', '健康']);
+    assert.strictEqual(await page.getByRole('button', { name: '热门接管' }).count(), 1);
+    await page.getByRole('button', { name: 'Skill 扫描' }).click();
+    await page.locator('#scan-modal:not([hidden])').waitFor();
+    assert.strictEqual(await page.locator('#scan-sources-list .scan-source-row').count(), 2);
+    const scanText = await page.locator('#scan-sources-list').textContent();
+    assert(scanText.includes('.agents/skills'));
+    assert(scanText.includes('skills-src'));
+    assert(scanText.includes('只读'));
+    await page.locator('#scan-cancel').click();
+
+    const removalCandidate = await page.evaluate(async function findRemovalCandidate() {
+      const overview = await fetch('/api/overview').then(function json(response) { return response.json(); });
+      const skill = overview.skills.find(function matching(item) { return item.removal && item.removal.available; });
+      return skill && { name: skill.name, label: skill.removal.label };
+    });
+    assert(removalCandidate);
+    await page.locator('#skill-search').fill(removalCandidate.name);
+    const removalRow = page.locator('#skill-list .skill-row[data-skill="' + removalCandidate.name + '"]');
+    await removalRow.waitFor();
+    await page.route('**/api/skills/removal/preview', function routeRemovalPreview(route) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        plan_id: 'browser-removal-plan', name: removalCandidate.name, mode: 'quarantine', ownership: 'manual',
+        path: '/tmp/' + removalCandidate.name, file_count: 3, total_bytes: 2048, recoverable: true,
+        confirmation_name: removalCandidate.name,
+        actions: [{ kind: 'skill_quarantine', path: '/tmp/' + removalCandidate.name, description: '将用户 Skill 移入 ASH 可恢复区 /tmp/' + removalCandidate.name }],
+      }) });
+    });
+    await removalRow.locator('.skill-actions-trigger').click();
+    assert.strictEqual(await removalRow.locator('.skill-actions-trigger').getAttribute('aria-expanded'), 'true');
+    assert.strictEqual(await removalRow.locator('.skill-actions-menu [role="menuitem"]').count(), 2);
+    await removalRow.locator('[data-action="preview-skill-removal"]').click();
+    await page.locator('#confirmation-modal:not([hidden])').waitFor();
+    assert((await page.locator('#modal-actions').textContent()).includes('可恢复区'));
+    assert.strictEqual(await page.locator('#modal-confirm-name-field').isVisible(), true);
+    assert.strictEqual(await page.locator('#modal-confirm-check-field').isVisible(), false);
+    assert.strictEqual(await page.locator('#modal-apply').isDisabled(), true);
+    await page.locator('#modal-confirm-name').fill(removalCandidate.name);
+    assert.strictEqual(await page.locator('#modal-apply').isEnabled(), true);
+    await page.locator('#modal-cancel').click();
+    await page.unroute('**/api/skills/removal/preview');
+    await page.locator('#skill-search').fill('');
+    await page.route('**/api/updates/source/popular/discover', function routeDiscover(route) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        discovery_id: 'browser-popular-discovery', provider: 'skills.sh', experimental: true,
+        scanned_count: 2, total_unmanaged: 2, remaining_count: 0, selected_names: ['beta'], selected_count: 1,
+        ambiguous_count: 1, no_match_count: 0, unavailable_count: 0,
+        proposals: [
+          { name: 'beta', state: 'selected', auto_selected: true, confidence: 'dominant', reason: '安装量明显领先。', candidate: { source: 'example/ui-skills', slug: 'beta', installs: 240 }, alternatives: [] },
+          { name: 'manual', state: 'ambiguous', auto_selected: false, reason: '候选来源接近，需手动选择。', candidate: { source: 'first/ui-skills', slug: 'manual', installs: 20 }, alternatives: [] },
+        ],
+      }) });
+    });
+    await page.route('**/api/updates/source/popular/preview', function routePopularPreview(route) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        plan_id: 'browser-popular-plan', selected_count: 2, ready_count: 1, skipped_count: 1,
+        actions: [{ kind: 'skill_source_batch', path: '/tmp/beta', description: 'TAKE OVER beta FROM SKILLS.SH https://skills.sh/example/ui-skills/beta :: +1 ~1 -0' }],
+        ready: [{ name: 'beta', diff: { added: 1, changed: 1, deleted: 0, executable: 0, preserved: 0, discarded: 0 } }],
+        skipped: [{ name: 'gamma', reason: '候选包含可执行文件，需单独人工预览和确认。' }],
+      }) });
+    });
+    await page.route('**/api/updates/source/popular/progress*', function routePopularProgress(route) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        status: 'running', plan_id: 'browser-popular-plan', current_name: 'beta',
+        done_count: 0, total_count: 1, applied_count: 0, failed_count: 0, remaining_count: 1,
+        items: [{ name: 'beta', index: 0, state: 'running', reason: null }],
+      }) });
+    });
+    let releasePopularApply;
+    const holdPopularApply = new Promise(function wait(resolve) { releasePopularApply = resolve; });
+    await page.route('**/api/updates/source/popular/apply', async function routePopularApply(route) {
+      await holdPopularApply;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        status: 'aborted', batch_transaction_id: 'browser-batch-transaction',
+        applied: [{ name: 'beta', transaction_id: 'browser-item-transaction' }],
+        failed: [{ name: 'manual', code: 'LOCAL_APPLY_FAILED', phase: 'local_apply', rollback_failed: true, reason: 'rollback failed' }],
+        applied_count: 1, failed_count: 1, remaining_count: 1, count: 1,
+      }) });
+    });
+    await page.getByRole('button', { name: '热门接管' }).click();
+    await page.locator('#popular-modal:not([hidden])').waitFor();
+    await page.locator('#popular-proposals .popular-proposal').first().waitFor();
+    const popularSummaryText = await page.locator('#popular-summary').textContent();
+    assert(popularSummaryText.includes('自动选择 1 个'), popularSummaryText);
+    assert.strictEqual(await page.locator('#popular-proposals input[name="popular-skill"]:checked').count(), 1);
+    await page.locator('#popular-preview').click();
+    await page.locator('#confirmation-modal:not([hidden])').waitFor();
+    assert((await page.locator('#modal-actions').textContent()).includes('TAKE OVER beta FROM SKILLS.SH'));
+    assert((await page.locator('#modal-actions .popular-apply-item.is-queued .popular-apply-status').textContent()).includes('等待中'));
+    assert((await page.locator('#modal-apply-progress').textContent()).includes('将执行 1 个，预览跳过 1 个'));
+    assert((await page.locator('#modal-actions').textContent()).includes('gamma'));
+    assert((await page.locator('#modal-actions').textContent()).includes('可执行文件'));
+    assert((await page.locator('#modal-actions .popular-apply-item.is-preview-skipped .popular-apply-status').textContent()).includes('已跳过'));
+    assert((await page.locator('#modal-description').textContent()).includes('若自动回滚失败，批处理会立即中止'));
+    await page.locator('#modal-confirm-check').check();
+    await page.locator('#modal-apply').click();
+    try {
+      await page.locator('#modal-actions .popular-apply-item.is-running').waitFor();
+      assert((await page.locator('#modal-apply-progress').textContent()).includes('正在接管 beta'));
+      assert((await page.locator('#modal-apply').textContent()).includes('1 / 1'));
+    } finally {
+      releasePopularApply();
+    }
+    await page.locator('#confirmation-modal').waitFor({ state: 'hidden' });
+    assert((await page.locator('#toast').textContent()).includes('批量接管已中止：自动回滚失败，未执行 1 项；早先成功 1 项已保留。'));
+    await page.unroute('**/api/updates/source/popular/discover');
+    await page.unroute('**/api/updates/source/popular/preview');
+    await page.unroute('**/api/updates/source/popular/progress*');
+    await page.unroute('**/api/updates/source/popular/apply');
+    const tableHeadText = await page.locator('.table-head').textContent();
+    ['名称', '体量', '状态', '健康', '操作'].forEach(function label(value) { assert(tableHeadText.includes(value)); });
     assert.strictEqual((await page.locator('body').textContent()).includes('SIGNAL'), false);
     const healthSamples = await page.evaluate(async function currentHealthSamples() {
       const overview = await fetch('/api/overview').then(function json(response) { return response.json(); });
@@ -107,7 +216,8 @@ async function main() {
     assert.strictEqual(await clearRow.locator('.health-empty').count(), 1);
     await page.locator('#skill-search').fill('');
     const initialRootCount = (await page.locator('#library-filters .library-filter').count()) - 1;
-    await page.getByRole('button', { name: '添加扫描目录' }).click();
+    await page.getByRole('button', { name: 'Skill 扫描' }).click();
+    await page.locator('#scan-add-root').click();
     await page.getByLabel('目录路径').fill(scanRoot);
     await page.getByLabel('显示名称（可选）').fill('Skills source preview');
     await page.locator('#workflow-submit').click();
@@ -158,6 +268,22 @@ async function main() {
     assert(/待检查|最新|可更新|待接管|待重建|外部管理|异常/.test(await page.locator('#skill-detail .update-source').textContent()));
     await page.screenshot({ path: '/tmp/ash-ui-update-detail.png', fullPage: true });
 
+    const updateCandidate = await page.evaluate(async function findUpdateCandidate() {
+      const overview = await fetch('/api/overview').then(function json(response) { return response.json(); });
+      const skill = overview.skills.find(function matching(item) {
+        return item.update && item.update.status === 'update-available' && item.library_ids.includes('managed');
+      });
+      return skill && skill.name;
+    });
+    if (updateCandidate) {
+      await page.locator('#skill-search').fill(updateCandidate);
+      await page.locator('#skill-list .skill-row[data-skill="' + updateCandidate + '"]').click();
+      await page.getByRole('button', { name: '预览更新' }).click();
+      await page.locator('#confirmation-modal:not([hidden])').waitFor({ timeout: 120000 });
+      assert((await page.locator('#modal-actions').textContent()).includes('UPDATE'));
+      await page.locator('#modal-cancel').click();
+    }
+
     await page.locator('#skill-search').fill('1password');
     const managedSourceRow = page.locator('#skill-list .skill-row[data-skill="1password"]');
     await managedSourceRow.waitFor();
@@ -190,6 +316,10 @@ async function main() {
     await skillsShLink.focus();
     await page.keyboard.press('Tab');
     assert.notStrictEqual(await repositoryLink.evaluate(function outline(element) { return getComputedStyle(element).outlineStyle; }), 'none');
+    assert.strictEqual(await page.getByRole('button', { name: '更换上游' }).count(), 1);
+    await page.getByRole('button', { name: '更换上游' }).click();
+    assert((await page.locator('#workflow-title').textContent()).includes('更换上游 1password'));
+    await page.locator('#workflow-cancel').click();
     await page.screenshot({ path: '/tmp/ash-ui-source-detail.png', fullPage: true });
 
     const sourceActionSkills = await page.evaluate(async function currentSourceActions() {
@@ -240,7 +370,60 @@ async function main() {
     await page.getByRole('link', { name: /维护/ }).click();
     assert((await page.locator('#update-card').textContent()).includes('检查用户 Skill 更新'));
     assert((await page.locator('#update-rollback-card').textContent()).includes('回滚最近 Skill 更新'));
+    assert((await page.locator('#removal-rollback-card').textContent()).includes('可恢复区管理'));
+    const recoveryRow = page.locator('#removal-rollback-card .removal-row').first();
+    if (await recoveryRow.count()) {
+      const recoveryName = (await recoveryRow.locator('.removal-copy strong').textContent()).trim();
+      await page.route('**/api/skills/removal/purge/preview', function routePurgePreview(route) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          plan_id: 'browser-purge-plan', transaction_id: 'browser-removal', name: recoveryName,
+          path: '/tmp/removals/browser-removal', recovery_path: '/tmp/removals/browser-removal/removed-skill',
+          file_count: 4, total_bytes: 4096, confirmation_name: recoveryName,
+          actions: [
+            { kind: 'skill_removal_purge', path: '/tmp/removals/browser-removal', description: '永久删除可恢复 Skill ' + recoveryName + ' 及其恢复事务 /tmp/removals/browser-removal' },
+            { kind: 'skill_removal_purge_size', path: '/tmp/removals/browser-removal', description: '永久释放 4 个文件、4096 bytes；操作后不可恢复' },
+          ],
+        }) });
+      });
+      await recoveryRow.getByRole('button', { name: '永久删除' }).click();
+      await page.locator('#confirmation-modal:not([hidden])').waitFor();
+      assert((await page.locator('#modal-title').textContent()).includes('永久删除'));
+      assert((await page.locator('#modal-actions').textContent()).includes('操作后不可恢复'));
+      assert.strictEqual(await page.locator('#modal-confirm-name-field').isVisible(), true);
+      assert.strictEqual(await page.locator('#modal-confirm-check-field').isVisible(), false);
+      await page.locator('#modal-confirm-name').fill(recoveryName);
+      assert.strictEqual(await page.locator('#modal-apply').isEnabled(), true);
+      await page.locator('#modal-cancel').click();
+      await page.unroute('**/api/skills/removal/purge/preview');
+    }
+    const recoveryCount = await page.locator('#removal-rollback-card .removal-row').count();
+    if (recoveryCount) {
+      const confirmationText = '永久删除全部 ' + recoveryCount + ' 个 Skill';
+      await page.route('**/api/skills/removal/bulk-purge/preview', function routeBulkPurgePreview(route) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          plan_id: 'browser-bulk-purge-plan', count: recoveryCount, names: ['browser-items'],
+          file_count: recoveryCount * 2, total_bytes: recoveryCount * 2048,
+          confirmation_text: confirmationText,
+          actions: [
+            { kind: 'skill_removal_bulk_purge', path: '/tmp/removals', description: '永久删除当前 ' + recoveryCount + ' 条可恢复记录' },
+            { kind: 'skill_removal_bulk_purge_size', description: '总计永久释放 ' + (recoveryCount * 2) + ' 个文件；操作后不可恢复' },
+          ],
+        }) });
+      });
+      await page.getByRole('button', { name: '永久删除全部' }).click();
+      await page.locator('#confirmation-modal:not([hidden])').waitFor();
+      assert((await page.locator('#modal-title').textContent()).includes('永久删除全部'));
+      assert.strictEqual(await page.locator('#modal-confirm-name-value').textContent(), confirmationText);
+      assert.strictEqual(await page.locator('#modal-confirm-check-field').isVisible(), false);
+      await page.locator('#modal-confirm-name').fill('永久删除全部');
+      assert.strictEqual(await page.locator('#modal-apply').isDisabled(), true);
+      await page.locator('#modal-confirm-name').fill(confirmationText);
+      assert.strictEqual(await page.locator('#modal-apply').isEnabled(), true);
+      await page.locator('#modal-cancel').click();
+      await page.unroute('**/api/skills/removal/bulk-purge/preview');
+    }
     assert((await page.locator('#retention-card').textContent()).includes('清理历史事务'));
+    assert.strictEqual(await page.getByRole('button', { name: '打开快照目录' }).count(), 1);
     await page.getByRole('button', { name: '创建快照' }).click();
     await page.locator('#confirmation-modal:not([hidden])').waitFor();
     assert((await page.locator('#modal-actions').textContent()).includes('CREATE USER SKILL SNAPSHOT'));
@@ -263,7 +446,7 @@ async function main() {
     await page.waitForTimeout(250);
     await page.screenshot({ path: '/tmp/ash-ui-maintenance.png', fullPage: true });
 
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: 375, height: 812 });
     await page.getByRole('link', { name: /总览/ }).click();
     await page.evaluate(function top() { window.scrollTo(0, 0); });
     await page.waitForTimeout(450);
@@ -299,12 +482,24 @@ async function main() {
     assert.strictEqual(await page.locator('#skill-detail .source-links .source-link').count(), 3);
     assert.strictEqual(await page.evaluate(function sourceLinksFit() { return document.documentElement.scrollWidth <= document.documentElement.clientWidth; }), true);
     await page.screenshot({ path: '/tmp/ash-ui-mobile.png', fullPage: true });
+    await page.getByRole('link', { name: /维护/ }).click();
+    await page.locator('#removal-rollback-card').waitFor();
+    assert.strictEqual(await page.evaluate(function mobileRecoveryFits() { return document.documentElement.scrollWidth <= document.documentElement.clientWidth; }), true);
+    const mobileRecoveryRow = page.locator('#removal-rollback-card .removal-row').first();
+    if (await mobileRecoveryRow.count()) {
+      assert.strictEqual(await mobileRecoveryRow.getByRole('button', { name: '恢复' }).isVisible(), true);
+      assert.strictEqual(await mobileRecoveryRow.getByRole('button', { name: '永久删除' }).isVisible(), true);
+    }
+    await page.screenshot({ path: '/tmp/ash-ui-mobile-maintenance.png', fullPage: true });
+    await page.setViewportSize({ width: 812, height: 375 });
+    await page.waitForTimeout(250);
+    assert.strictEqual(await page.evaluate(function landscapeRecoveryFits() { return document.documentElement.scrollWidth <= document.documentElement.clientWidth; }), true);
     assert.deepStrictEqual(browserErrors, []);
     process.stdout.write(JSON.stringify({
       title: await page.title(),
       skills: await page.locator('#metric-grid .metric-value').first().textContent(),
       readability,
-      screenshots: ['/tmp/ash-ui-overview.png', '/tmp/ash-ui-library.png', '/tmp/ash-ui-update-detail.png', '/tmp/ash-ui-source-detail.png', '/tmp/ash-ui-source-link.png', '/tmp/ash-ui-maintenance.png', '/tmp/ash-ui-mobile.png'],
+      screenshots: ['/tmp/ash-ui-overview.png', '/tmp/ash-ui-library.png', '/tmp/ash-ui-update-detail.png', '/tmp/ash-ui-source-detail.png', '/tmp/ash-ui-source-link.png', '/tmp/ash-ui-maintenance.png', '/tmp/ash-ui-mobile.png', '/tmp/ash-ui-mobile-maintenance.png'],
       browser_errors: browserErrors,
     }, null, 2) + '\n');
   } finally {

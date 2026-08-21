@@ -69,6 +69,8 @@ function fixture() {
   writeSkill(updateCandidate, 'alpha', 'Alpha UI workflow, updated upstream.');
   const sourceCandidate = path.join(root, 'source-candidate-beta');
   writeSkill(sourceCandidate, 'beta', 'Beta UI workflow, adopted from upstream.');
+  const retargetCandidate = path.join(root, 'source-candidate-beta-second');
+  writeSkill(retargetCandidate, 'beta', 'Beta UI workflow, retargeted upstream.');
   const updateSourceClient = {
     resolve: async function resolve(entry) {
       if (entry.slug !== 'beta') throw new Error('unexpected UI catalog slug: ' + entry.slug);
@@ -79,6 +81,9 @@ function fixture() {
     },
     materialize: async function materialize(entry) {
       if (entry.name === 'beta') {
+        if (/second\/ui-skills/.test(String(entry.sourceUrl || ''))) {
+          return { path: retargetCandidate, revision: 'beta-retarget-commit', folderHash: '6'.repeat(40), cleanup: function cleanup() {} };
+        }
         return { path: sourceCandidate, revision: 'beta-source-commit', folderHash: '3'.repeat(40), cleanup: function cleanup() {} };
       }
       return { path: updateCandidate, revision: 'alpha-new-commit', folderHash: '2'.repeat(40), cleanup: function cleanup() {} };
@@ -88,12 +93,12 @@ function fixture() {
   const skillsShSearchClient = {
     search: async function search(query) {
       skillsShSearchCalls += 1;
-      assert.strictEqual(query, 'beta');
+      if (query !== 'beta') return { contract: 'undocumented-api-search', candidates: [] };
       return {
         contract: 'undocumented-api-search',
         candidates: [
           { id: 'second/ui-skills/beta', name: 'beta', slug: 'beta', source: 'second/ui-skills', installs: 8, skills_url: 'https://skills.sh/second/ui-skills/beta', source_url: 'https://github.com/second/ui-skills.git' },
-          { id: 'example/ui-skills/beta', name: 'beta', slug: 'beta', source: 'example/ui-skills', installs: 24, skills_url: 'https://skills.sh/example/ui-skills/beta', source_url: 'https://github.com/example/ui-skills.git' },
+          { id: 'example/ui-skills/beta', name: 'beta', slug: 'beta', source: 'example/ui-skills', installs: 240, skills_url: 'https://skills.sh/example/ui-skills/beta', source_url: 'https://github.com/example/ui-skills.git' },
           { id: 'example/ui-skills/beta-helper', name: 'beta-helper', slug: 'beta-helper', source: 'example/ui-skills', installs: 999, skills_url: 'https://skills.sh/example/ui-skills/beta-helper', source_url: 'https://github.com/example/ui-skills.git' },
         ],
       };
@@ -131,6 +136,58 @@ function fixture() {
     skillsShSearchCalls: function count() { return skillsShSearchCalls; },
     cleanup: function cleanup() { removeTree(root); },
   };
+}
+
+function popularBatchFixture(names) {
+  const current = fixture();
+  const candidates = { beta: path.join(current.root, 'source-candidate-beta') };
+  const hashes = { beta: '3'.repeat(40) };
+  names.filter(function additional(name) { return name !== 'beta'; }).forEach(function add(name, index) {
+    writeSkill(path.join(current.library, name), name, name + ' local workflow.');
+    candidates[name] = path.join(current.root, 'source-candidate-' + name);
+    writeSkill(candidates[name], name, name + ' workflow, adopted from upstream.');
+    hashes[name] = String(4 + index).repeat(40);
+  });
+  const updateSourceClient = {
+    resolve: async function resolve(entry) {
+      return { sourceUrl: entry.sourceUrl, skillPath: 'skills/' + entry.slug + '/SKILL.md', revision: entry.slug + '-source-commit' };
+    },
+    materialize: async function materialize(entry) {
+      return { path: candidates[entry.name], revision: entry.name + '-source-commit', folderHash: hashes[entry.name], cleanup: function cleanup() {} };
+    },
+  };
+  const skillsShSearchClient = {
+    search: async function search(name) {
+      return {
+        contract: 'undocumented-api-search',
+        candidates: [{
+          id: 'example/batch-skills/' + name,
+          name,
+          slug: name,
+          source: 'example/batch-skills',
+          installs: 500,
+          skills_url: 'https://skills.sh/example/batch-skills/' + name,
+          source_url: 'https://github.com/example/batch-skills.git',
+        }],
+      };
+    },
+  };
+  return Object.assign(current, {
+    hashes,
+    updateSourceClient,
+    skillsShSearchClient,
+  });
+}
+
+async function previewPopularBatch(service, names) {
+  const discovery = await service.discoverPopularSkillSources({ limit: 100 });
+  const preview = await service.previewPopularSkillSources({ discovery_id: discovery.discovery_id, names });
+  assert.strictEqual(preview.ready_count, names.length);
+  return preview;
+}
+
+function readPopularLogs(settings) {
+  return fs.readFileSync(ash.popularTakeoverLogPath(settings), 'utf8').trim().split('\n').map(JSON.parse);
 }
 
 function request(target, options) {
@@ -174,12 +231,18 @@ async function testServiceSafety() {
   const current = fixture();
   try {
     let token = 0;
+    let openedSnapshotDirectory = null;
     const service = ash.createUiService(current.settings, {
       tokenFactory: function nextToken() { token += 1; return 'token-' + token; },
       dateFactory: function fixedDate() { return new Date('2026-08-20T00:00:00.000Z'); },
       updateSourceClient: current.updateSourceClient,
       skillsShSearchClient: current.skillsShSearchClient,
+      openDirectory: function open(directory) { openedSnapshotDirectory = directory; },
     });
+    const opened = service.openSnapshotDirectory();
+    assert.strictEqual(opened.status, 'opened');
+    assert.strictEqual(opened.path, path.join(current.settings.stateDir, 'snapshots'));
+    assert.strictEqual(openedSnapshotDirectory, opened.path);
     const overview = service.overview();
     assert.strictEqual(overview.library.path, current.library);
     assert.strictEqual(overview.summary.skills, 2);
@@ -265,6 +328,21 @@ async function testServiceSafety() {
     assert.strictEqual(checkedUpdates.summary.update_available, 1);
     assert.strictEqual(service.overview().skills.find(function alpha(skill) { return skill.name === 'alpha'; }).update.status, 'update-available');
     assert.strictEqual(service.overview().skills.find(function alpha(skill) { return skill.name === 'alpha'; }).update.display.label, '可更新');
+    const persistedCheck = path.join(current.settings.stateDir, 'update-check.json');
+    assert.strictEqual(fs.existsSync(persistedCheck), true);
+    const restartedService = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient });
+    const restartedAlpha = restartedService.skillDetail('alpha').update;
+    assert.strictEqual(restartedAlpha.status, 'update-available');
+    assert.strictEqual(restartedAlpha.display.label, '可更新');
+    const restartedPreview = await restartedService.previewSkillUpdate({ name: 'alpha' });
+    assert(restartedPreview.plan_id);
+    const lockBeforeCacheValidation = fs.readFileSync(current.lockPath, 'utf8');
+    const changedLock = JSON.parse(lockBeforeCacheValidation);
+    changedLock.skills.alpha.skillFolderHash = 'f'.repeat(40);
+    fs.writeFileSync(current.lockPath, JSON.stringify(changedLock, null, 2), 'utf8');
+    const invalidatedService = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient });
+    assert.strictEqual(invalidatedService.skillDetail('alpha').update.status, 'checkable');
+    fs.writeFileSync(current.lockPath, lockBeforeCacheValidation, 'utf8');
     const updatePreview = await service.previewSkillUpdate({ name: 'alpha' });
     assert(updatePreview.plan_id);
     assert(updatePreview.diff.changed.some(function skillMd(item) { return item.path === 'SKILL.md'; }));
@@ -281,6 +359,15 @@ async function testServiceSafety() {
     const updateRollback = service.previewSkillUpdateRollback();
     const updateRolledBack = service.applySkillUpdateRollback({ rollback_id: updateRollback.rollback_id, confirm: true });
     assert.strictEqual(updateRolledBack.status, 'rolled_back');
+    const uiRollbackTransaction = JSON.parse(fs.readFileSync(path.join(
+      current.settings.stateDir, 'updates', updateRollback.transaction_id, 'transaction.json',
+    ), 'utf8'));
+    assert.strictEqual(uiRollbackTransaction.version, 1);
+    assert.strictEqual(uiRollbackTransaction.rollback.initiator, 'ui');
+    assert.strictEqual(uiRollbackTransaction.rollback.reason, 'manual_user_request');
+    assert.strictEqual(uiRollbackTransaction.rollback.outcome, 'completed');
+    assert(uiRollbackTransaction.rollback.started_at);
+    assert(uiRollbackTransaction.rollback.completed_at);
     assert.strictEqual(service.skillDetail('alpha').description, 'Alpha UI workflow.');
 
     const betaBeforeDiscovery = fs.readFileSync(path.join(current.library, 'beta', 'SKILL.md'), 'utf8');
@@ -299,10 +386,10 @@ async function testServiceSafety() {
     const cachedDiscovery = await service.discoverSkillSource({ name: 'beta' });
     assert.strictEqual(cachedDiscovery.cached, true);
     assert.strictEqual(current.skillsShSearchCalls(), 1);
-    await assert.rejects(
-      service.discoverSkillSource({ name: 'alpha' }),
-      function matching(error) { return error.code === 'SOURCE_DISCOVERY_NOT_AVAILABLE'; },
-    );
+    const alphaDiscovery = await service.discoverSkillSource({ name: 'alpha' });
+    assert.strictEqual(alphaDiscovery.state, 'no-match');
+    assert.strictEqual(alphaDiscovery.current_source.source, 'example/ui-skills');
+    assert.strictEqual(alphaDiscovery.current_source.source_url, 'https://github.com/example/ui-skills.git');
     const unavailableService = ash.createUiService(current.settings, {
       updateSourceClient: current.updateSourceClient,
       skillsShSearchClient: { search: async function unavailable() { throw new Error('provider unavailable'); } },
@@ -311,6 +398,32 @@ async function testServiceSafety() {
     assert.strictEqual(unavailableDiscovery.state, 'unavailable');
     assert.strictEqual(unavailableDiscovery.manual_entry, true);
     assert.strictEqual(unavailableDiscovery.candidates.length, 0);
+
+    const popularService = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const popularDiscovery = await popularService.discoverPopularSkillSources({ limit: 10 });
+    assert.strictEqual(popularDiscovery.experimental, true);
+    assert.strictEqual(popularDiscovery.selected_count, 1);
+    assert.deepStrictEqual(popularDiscovery.selected_names, ['beta']);
+    assert.strictEqual(popularDiscovery.ambiguous_count, 0);
+    const popularPreview = await popularService.previewPopularSkillSources({
+      discovery_id: popularDiscovery.discovery_id,
+      names: ['beta'],
+    });
+    assert(popularPreview.plan_id);
+    assert.strictEqual(popularPreview.ready_count, 1);
+    assert.strictEqual(popularPreview.skipped_count, 0);
+    assert(popularPreview.actions[0].description.includes('TAKE OVER beta FROM SKILLS.SH'));
+    const popularApplied = await popularService.applyPopularSkillSources({ plan_id: popularPreview.plan_id, confirm: true });
+    assert.strictEqual(popularApplied.status, 'completed');
+    assert.strictEqual(popularApplied.count, 1);
+    assert.strictEqual(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.beta.skillFolderHash, '3'.repeat(40));
+    const popularRollback = popularService.previewSkillUpdateRollback();
+    const popularRolledBack = popularService.applySkillUpdateRollback({ rollback_id: popularRollback.rollback_id, confirm: true });
+    assert.strictEqual(popularRolledBack.status, 'rolled_back');
+    assert.strictEqual(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.beta, undefined);
 
     const sourcePreview = await service.previewSkillSource({
       name: 'beta', skills_url: 'https://skills.sh/example/ui-skills/beta',
@@ -330,6 +443,8 @@ async function testServiceSafety() {
     );
     assert.strictEqual(service.skillDetail('beta').description, 'Beta UI workflow, adopted from upstream.');
     assert.strictEqual(service.skillDetail('beta').update.status, 'up-to-date');
+    const restartedAfterSourceLink = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient });
+    assert.strictEqual(restartedAfterSourceLink.skillDetail('beta').update.status, 'up-to-date');
     const linkedSource = service.skillDetail('beta').update;
     assert.strictEqual(linkedSource.source_origin.label, 'skills.sh 接管');
     assert.deepStrictEqual(linkedSource.source_links.map(function kind(item) { return item.kind; }), ['skills-sh', 'github-repository', 'github-skill']);
@@ -344,12 +459,15 @@ async function testServiceSafety() {
     ]);
     const historyBackedService = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient });
     const historyBackedUpdate = historyBackedService.skillDetail('beta').update;
-    assert.strictEqual(historyBackedUpdate.status, 'checkable');
-    assert.strictEqual(historyBackedUpdate.display.label, '待检查');
+    assert.strictEqual(historyBackedUpdate.status, 'up-to-date');
+    assert.strictEqual(historyBackedUpdate.display.label, '最新');
     assert.strictEqual(historyBackedUpdate.source_origin.label, 'skills.sh 接管');
     assert.strictEqual(historyBackedUpdate.source_links[0].url, 'https://skills.sh/example/ui-skills/beta');
     const updateHistoryRoot = path.join(current.settings.stateDir, 'updates');
     const hiddenUpdateHistory = path.join(current.settings.stateDir, 'updates.withheld-for-test');
+    const updateCheckFile = path.join(current.settings.stateDir, 'update-check.json');
+    const updateCheckContent = fs.readFileSync(updateCheckFile, 'utf8');
+    fs.unlinkSync(updateCheckFile);
     fs.renameSync(updateHistoryRoot, hiddenUpdateHistory);
     try {
       const noHistoryUpdate = ash.createUiService(current.settings, { updateSourceClient: current.updateSourceClient }).skillDetail('beta').update;
@@ -358,11 +476,36 @@ async function testServiceSafety() {
       assert.deepStrictEqual(noHistoryUpdate.source_links.map(function kind(item) { return item.kind; }), ['github-repository', 'github-skill']);
     } finally {
       fs.renameSync(hiddenUpdateHistory, updateHistoryRoot);
+      fs.writeFileSync(updateCheckFile, updateCheckContent, 'utf8');
     }
+    const linkedDiscovery = await service.discoverSkillSource({ name: 'beta' });
+    assert.strictEqual(linkedDiscovery.state, 'ok');
+    assert.strictEqual(linkedDiscovery.current_source.source_url, 'https://github.com/example/ui-skills.git');
+    assert.strictEqual(linkedDiscovery.current_source.skills_url, 'https://skills.sh/example/ui-skills/beta');
+    assert(linkedDiscovery.candidates.some(function current(item) {
+      return item.current && item.source === 'example/ui-skills';
+    }));
     await assert.rejects(
-      service.discoverSkillSource({ name: 'beta' }),
-      function matching(error) { return error.code === 'SOURCE_DISCOVERY_NOT_AVAILABLE'; },
+      service.previewSkillSource({ name: 'beta', skills_url: 'https://skills.sh/example/ui-skills/beta' }),
+      function matching(error) { return error.code === 'INVALID_UPDATE_SOURCE' && /same as the current/.test(error.message); },
     );
+    const retargetPreview = await service.previewSkillSource({
+      name: 'beta', skills_url: 'https://skills.sh/second/ui-skills/beta',
+    });
+    assert.strictEqual(retargetPreview.operation, 'retarget-source');
+    assert.strictEqual(retargetPreview.previous_source, 'example/ui-skills');
+    assert.strictEqual(retargetPreview.source, 'second/ui-skills');
+    assert(retargetPreview.actions.some(function retarget(item) { return item.kind === 'skill_source_retarget'; }));
+    const retargeted = await service.applySkillSource({ plan_id: retargetPreview.plan_id, confirm: true });
+    assert.strictEqual(retargeted.status, 'source_retargeted');
+    assert.strictEqual(service.skillDetail('beta').description, 'Beta UI workflow, retargeted upstream.');
+    assert.strictEqual(service.skillDetail('beta').update.source_origin.label, 'skills.sh 接管');
+    assert.strictEqual(service.skillDetail('beta').update.source_links[0].url, 'https://skills.sh/second/ui-skills/beta');
+    assert.strictEqual(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.beta.source, 'second/ui-skills');
+    const retargetRollback = service.previewSkillUpdateRollback();
+    service.applySkillUpdateRollback({ rollback_id: retargetRollback.rollback_id, confirm: true });
+    assert.strictEqual(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.beta.source, 'example/ui-skills');
+    assert.strictEqual(service.skillDetail('beta').update.source_links[0].url, 'https://skills.sh/example/ui-skills/beta');
     let sourceRollback = service.previewSkillUpdateRollback();
     service.applySkillUpdateRollback({ rollback_id: sourceRollback.rollback_id, confirm: true });
     assert.strictEqual(service.skillDetail('beta').description, 'Beta UI workflow.');
@@ -446,6 +589,10 @@ async function testServiceSafety() {
     assert(linkedBeta[0].library_ids.includes(libraryPreview.root.id));
     assert.strictEqual(service.skillDetail('beta', libraryPreview.root.id).can_write, true);
     assert.strictEqual(service.skillDetail('gamma', libraryPreview.root.id).library_mode, 'observe');
+    assert.strictEqual(service.skillDetail('gamma', libraryPreview.root.id).can_remove, false);
+    assert.throws(function readOnlyRemoval() {
+      service.previewSkillRemoval({ name: 'gamma', library_id: libraryPreview.root.id });
+    }, function matching(error) { return error.code === 'READ_ONLY_LIBRARY'; });
 
     const createPreview = service.previewCreateSkill({ name: 'delta', description: 'Delta managed workflow.' });
     const created = service.applyCreateSkill({ plan_id: createPreview.plan_id, confirm: true });
@@ -472,6 +619,63 @@ async function testServiceSafety() {
     assert.strictEqual(packaged.status, 'packaged');
     assert(fs.existsSync(packaged.output));
 
+    const removalPreview = service.previewSkillRemoval({ name: 'delta', library_id: ash.MANAGED_LIBRARY_ID });
+    assert.strictEqual(removalPreview.mode, 'quarantine');
+    assert.strictEqual(removalPreview.confirmation_name, 'delta');
+    assert(removalPreview.actions.some(function recovery(item) { return item.kind === 'skill_quarantine'; }));
+    assert.throws(function missingTypedConfirmation() {
+      service.applySkillRemoval({ plan_id: removalPreview.plan_id, confirm: true, confirmation_name: 'wrong' });
+    }, function matching(error) { return error.code === 'CONFIRMATION_NAME_MISMATCH'; });
+    const freshRemoval = service.previewSkillRemoval({ name: 'delta', library_id: ash.MANAGED_LIBRARY_ID });
+    const removed = service.applySkillRemoval({ plan_id: freshRemoval.plan_id, confirm: true, confirmation_name: 'delta' });
+    assert.strictEqual(removed.status, 'removed');
+    assert.strictEqual(fs.existsSync(path.join(current.library, 'delta')), false);
+    assert.strictEqual(service.overview().removal_rollback.name, 'delta');
+    const removalRollback = service.previewSkillRemovalRollback();
+    const removalRestored = service.applySkillRemovalRollback({ rollback_id: removalRollback.rollback_id, confirm: true });
+    assert.strictEqual(removalRestored.status, 'restored');
+    assert(fs.existsSync(path.join(current.library, 'delta', 'SKILL.md')));
+
+    writeSkill(path.join(current.library, 'purge-probe'), 'purge-probe', 'Disposable permanent deletion probe.');
+    const purgeRemoval = service.previewSkillRemoval({ name: 'purge-probe', library_id: ash.MANAGED_LIBRARY_ID });
+    service.applySkillRemoval({ plan_id: purgeRemoval.plan_id, confirm: true, confirmation_name: 'purge-probe' });
+    const recoveryItems = service.overview().removals;
+    assert.strictEqual(recoveryItems.length, 1);
+    assert.strictEqual(recoveryItems[0].name, 'purge-probe');
+    assert.strictEqual(recoveryItems[0].can_restore, true);
+    const purgePreview = service.previewSkillRemovalPurge({ transaction_id: recoveryItems[0].transaction_id });
+    assert.strictEqual(purgePreview.confirmation_name, 'purge-probe');
+    assert(purgePreview.actions.some(function irreversible(item) { return item.kind === 'skill_removal_purge'; }));
+    assert.throws(function wrongPurgeName() {
+      service.applySkillRemovalPurge({ plan_id: purgePreview.plan_id, confirm: true, confirmation_name: 'wrong' });
+    }, function matching(error) { return error.code === 'CONFIRMATION_NAME_MISMATCH'; });
+    const freshPurge = service.previewSkillRemovalPurge({ transaction_id: recoveryItems[0].transaction_id });
+    const purged = service.applySkillRemovalPurge({ plan_id: freshPurge.plan_id, confirm: true, confirmation_name: 'purge-probe' });
+    assert.strictEqual(purged.status, 'purged');
+    assert.deepStrictEqual(service.overview().removals, []);
+    assert.strictEqual(fs.existsSync(path.join(current.library, 'purge-probe')), false);
+
+    ['bulk-probe-one', 'bulk-probe-two'].forEach(function addBulkProbe(name) {
+      writeSkill(path.join(current.library, name), name, 'Disposable bulk permanent deletion probe.');
+      const preview = service.previewSkillRemoval({ name, library_id: ash.MANAGED_LIBRARY_ID });
+      service.applySkillRemoval({ plan_id: preview.plan_id, confirm: true, confirmation_name: name });
+    });
+    const bulkPurgePreview = service.previewSkillRemovalBulkPurge();
+    assert.strictEqual(bulkPurgePreview.count, 2);
+    assert.strictEqual(bulkPurgePreview.confirmation_text, '永久删除全部 2 个 Skill');
+    assert.throws(function wrongBulkConfirmation() {
+      service.applySkillRemovalBulkPurge({ plan_id: bulkPurgePreview.plan_id, confirm: true, confirmation_text: '永久删除全部' });
+    }, function matching(error) { return error.code === 'CONFIRMATION_TEXT_MISMATCH'; });
+    const freshBulkPurge = service.previewSkillRemovalBulkPurge();
+    const bulkPurged = service.applySkillRemovalBulkPurge({
+      plan_id: freshBulkPurge.plan_id,
+      confirm: true,
+      confirmation_text: freshBulkPurge.confirmation_text,
+    });
+    assert.strictEqual(bulkPurged.status, 'purged');
+    assert.strictEqual(bulkPurged.deleted_count, 2);
+    assert.deepStrictEqual(service.overview().removals, []);
+
     const snapshotPreview = service.previewSnapshotCreate();
     const snapshotCreated = service.applySnapshotCreate({ plan_id: snapshotPreview.plan_id, confirm: true });
     assert.strictEqual(snapshotCreated.status, 'created');
@@ -496,9 +700,418 @@ async function testServiceSafety() {
   }
 }
 
+async function testPopularBatchKeepsSequentialSuccessesAndWritesLogs() {
+  const current = popularBatchFixture(['beta', 'gamma']);
+  try {
+    const service = ash.createUiService(current.settings, {
+      dateFactory: function fixedDate() { return new Date('2026-08-21T08:00:00.000Z'); },
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const preview = await previewPopularBatch(service, ['beta', 'gamma']);
+    const result = await service.applyPopularSkillSources({ plan_id: preview.plan_id, confirm: true });
+    assert.strictEqual(result.status, 'completed');
+    assert.deepStrictEqual(result.applied.map(function name(item) { return item.name; }), ['beta', 'gamma']);
+    assert.deepStrictEqual(result.failed, []);
+    assert.strictEqual(result.applied_count, 2);
+    assert.strictEqual(result.failed_count, 0);
+    const progress = service.popularApplyProgress(preview.plan_id);
+    assert.strictEqual(progress.status, 'completed');
+    assert.strictEqual(progress.applied_count, 2);
+    assert.deepStrictEqual(progress.items.map(function state(item) { return item.state; }), ['succeeded', 'succeeded']);
+    const lock = JSON.parse(fs.readFileSync(current.lockPath, 'utf8'));
+    assert.strictEqual(lock.skills.beta.skillFolderHash, current.hashes.beta);
+    assert.strictEqual(lock.skills.gamma.skillFolderHash, current.hashes.gamma);
+
+    const logPath = ash.popularTakeoverLogPath(current.settings);
+    const logText = fs.readFileSync(logPath, 'utf8');
+    const logs = readPopularLogs(current.settings);
+    assert.deepStrictEqual(logs.map(function event(item) { return item.event; }), [
+      'batch_started', 'item_started', 'item_succeeded', 'item_started', 'item_succeeded', 'batch_finished',
+    ]);
+    assert(logs.every(function correlated(item) { return item.batch_transaction_id === result.batch_transaction_id; }));
+    assert(logs.filter(function succeeded(item) { return item.event === 'item_succeeded'; }).every(function transaction(item) { return Boolean(item.transaction_id); }));
+    const itemLogs = logs.filter(function item(item) { return item.skill_name; });
+    assert(itemLogs.every(function diagnostic(item) {
+      return ['beta', 'gamma'].indexOf(item.skill_name) !== -1 &&
+        item.source_identity === 'example/batch-skills/' + item.skill_name &&
+        Boolean(item.execution_phase) &&
+        Boolean(item.transaction_id) &&
+        Object.prototype.hasOwnProperty.call(item, 'error_code') &&
+        Object.prototype.hasOwnProperty.call(item, 'error_message');
+    }));
+    assert.strictEqual(logs[5].outcome, 'completed');
+    assert.strictEqual(fs.statSync(logPath).mode & 0o777, 0o600);
+    assert.strictEqual(logText.includes(current.root), false);
+    assert.strictEqual(logText.includes('beta'), true);
+    assert.strictEqual(logText.includes('gamma'), true);
+    process.stdout.write('ok - popular takeover applies two sequential Skills and writes privacy-safe structured logs\n');
+  } finally {
+    current.cleanup();
+  }
+}
+
+async function testSingleSourceFailureRedactsThrownUiError() {
+  const current = fixture();
+  const renameSync = fs.renameSync;
+  const secret = 'single-ui-session-secret';
+  try {
+    const service = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+      auditSecrets: [secret],
+    });
+    const preview = await service.previewSkillSource({
+      name: 'beta',
+      source_url: 'https://github.com/example/ui-skills.git',
+      skill_path: 'skills/beta',
+    });
+    fs.renameSync = function failLockWrite(source, destination) {
+      if (destination === current.lockPath) {
+        throw new Error('write denied at ' + current.settings.homeDir + '; X-ASH-Session=' + secret +
+          '; https://example.invalid/?access_token=query-secret');
+      }
+      return renameSync(source, destination);
+    };
+    let caught;
+    try {
+      await service.applySkillSource({ plan_id: preview.plan_id, confirm: true });
+    } catch (error) {
+      caught = error;
+    }
+    assert(caught);
+    assert.strictEqual(caught.code, 'LOCAL_APPLY_FAILED');
+    assert.strictEqual(caught.message.includes(current.settings.homeDir), false);
+    assert.strictEqual(caught.message.includes(secret), false);
+    assert.strictEqual(caught.message.includes('query-secret'), false);
+    assert(caught.message.length <= 400);
+    process.stdout.write('ok - single-source UI failures redact HOME, session headers, and token query values\n');
+  } finally {
+    fs.renameSync = renameSync;
+    current.cleanup();
+  }
+}
+
+async function testPopularBatchReturnsPartialAndContinues() {
+  const current = popularBatchFixture(['beta', 'gamma', 'zeta']);
+  const renameSync = fs.renameSync;
+  let failGammaLockWrite = true;
+  try {
+    fs.renameSync = function failOneLockWrite(source, destination) {
+      if (failGammaLockWrite && destination === current.lockPath) {
+        const candidate = JSON.parse(fs.readFileSync(source, 'utf8'));
+        if (candidate.skills && candidate.skills.gamma) {
+          failGammaLockWrite = false;
+          throw new Error('installer lock denied at ' + current.root +
+            '; X-ASH-Session=session-super-secret; https://example.invalid/?session=session-query-secret&token=token-query-secret; ' +
+            new Array(600).fill('x').join(''));
+        }
+      }
+      return renameSync(source, destination);
+    };
+    const service = ash.createUiService(current.settings, {
+      dateFactory: function fixedDate() { return new Date('2026-08-21T09:00:00.000Z'); },
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+      auditSecrets: ['session-super-secret'],
+    });
+    const preview = await previewPopularBatch(service, ['beta', 'gamma', 'zeta']);
+    const result = await service.applyPopularSkillSources({ plan_id: preview.plan_id, confirm: true });
+    assert.strictEqual(result.status, 'partial');
+    assert.deepStrictEqual(result.applied.map(function name(item) { return item.name; }), ['beta', 'zeta']);
+    assert.deepStrictEqual(result.failed.map(function name(item) { return item.name; }), ['gamma']);
+    assert.strictEqual(result.failed[0].code, 'LOCAL_APPLY_FAILED');
+    assert.strictEqual(result.failed[0].phase, 'local_apply');
+    assert.strictEqual(result.failed[0].rollback_failed, false);
+    assert(result.failed[0].transaction_id);
+    assert.strictEqual(result.applied_count, 2);
+    assert.strictEqual(result.failed_count, 1);
+    const lock = JSON.parse(fs.readFileSync(current.lockPath, 'utf8'));
+    assert.strictEqual(lock.skills.beta.skillFolderHash, current.hashes.beta);
+    assert.strictEqual(lock.skills.gamma, undefined);
+    assert.strictEqual(lock.skills.zeta.skillFolderHash, current.hashes.zeta);
+    const logs = readPopularLogs(current.settings);
+    assert.strictEqual(logs.filter(function failed(item) { return item.event === 'item_failed'; }).length, 1);
+    const failureLog = logs.find(function failed(item) { return item.event === 'item_failed'; });
+    assert.strictEqual(failureLog.error_code, 'LOCAL_APPLY_FAILED');
+    assert.strictEqual(failureLog.execution_phase, 'local_apply');
+    assert.strictEqual(failureLog.skill_name, 'gamma');
+    assert.strictEqual(failureLog.source_identity, 'example/batch-skills/gamma');
+    assert.strictEqual(failureLog.transaction_id, result.failed[0].transaction_id);
+    assert(failureLog.error_message.length <= 400);
+    assert.strictEqual(failureLog.error_message.includes(current.root), false);
+    assert.strictEqual(failureLog.error_message.includes('session-super-secret'), false);
+    assert.strictEqual(failureLog.error_message.includes('session-query-secret'), false);
+    assert.strictEqual(failureLog.error_message.includes('token-query-secret'), false);
+    const rollback = logs.find(function rolledBack(item) { return item.event === 'rollback_started'; });
+    assert(rollback.transaction_id);
+    assert.strictEqual(rollback.rollback_initiator, 'popular_takeover_item_transaction');
+    assert.strictEqual(rollback.rollback_reason, 'LOCAL_APPLY_FAILED');
+    const failedTransaction = JSON.parse(fs.readFileSync(path.join(
+      current.settings.stateDir, 'updates', result.failed[0].transaction_id, 'transaction.json',
+    ), 'utf8'));
+    assert.strictEqual(failedTransaction.version, 1);
+    assert.strictEqual(failedTransaction.status, 'failed');
+    assert.strictEqual(failedTransaction.rollback.initiator, 'popular_takeover_item_transaction');
+    assert.strictEqual(failedTransaction.rollback.outcome, 'completed');
+    const persistedErrors = JSON.stringify({
+      error: failedTransaction.error,
+      rollback_error: failedTransaction.rollback_error,
+      rollback: failedTransaction.rollback,
+    });
+    assert(failedTransaction.rollback.reason.includes('installer lock denied'));
+    assert(failedTransaction.error.length <= 400);
+    assert(failedTransaction.rollback.reason.length <= 400);
+    assert.strictEqual(persistedErrors.includes(current.root), false);
+    assert.strictEqual(persistedErrors.includes('session-super-secret'), false);
+    assert.strictEqual(persistedErrors.includes('session-query-secret'), false);
+    assert.strictEqual(persistedErrors.includes('token-query-secret'), false);
+    assert.strictEqual(JSON.stringify(result).includes(current.root), false);
+    assert.strictEqual(JSON.stringify(result).includes('session-super-secret'), false);
+    assert.strictEqual(JSON.stringify(result).includes('session-query-secret'), false);
+    assert.strictEqual(JSON.stringify(result).includes('token-query-secret'), false);
+    assert(failedTransaction.rollback.started_at);
+    assert(failedTransaction.rollback.completed_at);
+    assert.strictEqual(logs[logs.length - 1].outcome, 'partial');
+    assert.strictEqual(logs[logs.length - 1].applied_count, 2);
+    assert.strictEqual(logs[logs.length - 1].failed_count, 1);
+    process.stdout.write('ok - popular takeover preserves successes and continues after a partial failure\n');
+  } finally {
+    fs.renameSync = renameSync;
+    current.cleanup();
+  }
+}
+
+async function testPopularBatchClassifiesPreparationFailuresAndContinues() {
+  const current = popularBatchFixture(['beta', 'gamma', 'zeta']);
+  const materialize = current.updateSourceClient.materialize;
+  const calls = new Map();
+  const brokenCandidate = path.join(current.root, 'broken-candidate-gamma');
+  fs.mkdirSync(brokenCandidate, { recursive: true });
+  current.updateSourceClient.materialize = async function failPreparedCandidate(entry) {
+    const count = (calls.get(entry.name) || 0) + 1;
+    calls.set(entry.name, count);
+    if (entry.name === 'gamma' && count === 4) {
+      return { path: brokenCandidate, revision: 'gamma-broken', folderHash: current.hashes.gamma, cleanup: function cleanup() {} };
+    }
+    return materialize(entry);
+  };
+  try {
+    const service = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const preview = await previewPopularBatch(service, ['beta', 'gamma', 'zeta']);
+    const result = await service.applyPopularSkillSources({ plan_id: preview.plan_id, confirm: true });
+    assert.strictEqual(result.status, 'partial');
+    assert.deepStrictEqual(result.applied.map(function name(item) { return item.name; }), ['beta', 'zeta']);
+    assert.strictEqual(result.failed[0].code, 'LOCAL_APPLY_FAILED');
+    assert.strictEqual(result.failed[0].phase, 'preparation');
+    assert.strictEqual(result.failed[0].transaction_id, null);
+    assert.strictEqual(result.failed[0].rollback_failed, false);
+    const failureLog = readPopularLogs(current.settings).find(function failed(item) { return item.event === 'item_failed'; });
+    assert.strictEqual(failureLog.execution_phase, 'preparation');
+    process.stdout.write('ok - popular takeover classifies preparation failures and continues remaining items\n');
+  } finally {
+    current.cleanup();
+  }
+}
+
+async function testPopularBatchAbortsWhenAutomaticRollbackFails() {
+  const current = popularBatchFixture(['beta', 'gamma', 'zeta']);
+  const renameSync = fs.renameSync;
+  let injected = false;
+  try {
+    fs.renameSync = function changeLockAfterGammaWrite(source, destination) {
+      const result = renameSync(source, destination);
+      if (!injected && destination === current.lockPath) {
+        const written = JSON.parse(fs.readFileSync(destination, 'utf8'));
+        if (written.skills && written.skills.gamma) {
+          written.skills.concurrent = { sourceType: 'external', marker: 'keep-me' };
+          fs.writeFileSync(destination, JSON.stringify(written, null, 2) + '\n', 'utf8');
+          injected = true;
+        }
+      }
+      return result;
+    };
+    const service = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const preview = await previewPopularBatch(service, ['beta', 'gamma', 'zeta']);
+    const result = await service.applyPopularSkillSources({ plan_id: preview.plan_id, confirm: true });
+    assert.strictEqual(result.status, 'aborted');
+    assert.strictEqual(result.remaining_count, 1);
+    assert.deepStrictEqual(result.applied.map(function name(item) { return item.name; }), ['beta']);
+    assert.deepStrictEqual(result.failed.map(function name(item) { return item.name; }), ['gamma']);
+    assert.strictEqual(result.failed[0].rollback_failed, true);
+    assert.strictEqual(result.failed[0].phase, 'local_apply');
+    assert(result.failed[0].transaction_id);
+    const lock = JSON.parse(fs.readFileSync(current.lockPath, 'utf8'));
+    assert.strictEqual(lock.skills.beta.skillFolderHash, current.hashes.beta);
+    assert.strictEqual(lock.skills.gamma.skillFolderHash, current.hashes.gamma);
+    assert.strictEqual(lock.skills.concurrent.marker, 'keep-me');
+    assert.strictEqual(lock.skills.zeta, undefined);
+    const transaction = JSON.parse(fs.readFileSync(path.join(
+      current.settings.stateDir, 'updates', result.failed[0].transaction_id, 'transaction.json',
+    ), 'utf8'));
+    assert.strictEqual(transaction.rollback_failed, true);
+    assert.strictEqual(transaction.rollback.outcome, 'failed');
+    assert.strictEqual(transaction.lock_written, true);
+    const logs = readPopularLogs(current.settings);
+    assert.strictEqual(logs.some(function zeta(item) { return item.skill_name === 'zeta'; }), false);
+    assert.strictEqual(logs[logs.length - 1].outcome, 'aborted');
+    assert.strictEqual(logs[logs.length - 1].remaining_count, 1);
+    process.stdout.write('ok - popular takeover aborts remaining items when automatic rollback fails\n');
+  } finally {
+    fs.renameSync = renameSync;
+    current.cleanup();
+  }
+}
+
+async function testPopularBatchKeepsTransactionSuccessWhenPostWorkFails() {
+  const current = popularBatchFixture(['beta']);
+  const openSync = fs.openSync;
+  const readdirSync = fs.readdirSync;
+  let auditWriteFailed = false;
+  let cacheRefreshFailed = false;
+  try {
+    const logPath = ash.popularTakeoverLogPath(current.settings);
+    fs.openSync = function failAuditWrite(filePath) {
+      if (filePath === logPath) {
+        auditWriteFailed = true;
+        throw new Error('simulated audit write failure');
+      }
+      return openSync.apply(fs, arguments);
+    };
+    fs.readdirSync = function failPostTransactionCache(directory) {
+      if (directory === current.library) {
+        const lock = JSON.parse(fs.readFileSync(current.lockPath, 'utf8'));
+        if (lock.skills.beta) {
+          cacheRefreshFailed = true;
+          throw new Error('simulated post-transaction cache refresh failure');
+        }
+      }
+      return readdirSync.apply(fs, arguments);
+    };
+    const service = ash.createUiService(current.settings, {
+      dateFactory: function fixedDate() { return new Date('2026-08-21T10:00:00.000Z'); },
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const preview = await previewPopularBatch(service, ['beta']);
+    const result = await service.applyPopularSkillSources({ plan_id: preview.plan_id, confirm: true });
+    assert.strictEqual(result.status, 'completed');
+    assert.deepStrictEqual(result.applied.map(function name(item) { return item.name; }), ['beta']);
+    assert.deepStrictEqual(result.failed, []);
+    assert.strictEqual(result.applied_count, 1);
+    assert.strictEqual(result.failed_count, 0);
+    assert.strictEqual(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.beta.skillFolderHash, current.hashes.beta);
+    const transaction = JSON.parse(fs.readFileSync(path.join(
+      current.settings.stateDir, 'updates', result.applied[0].transaction_id, 'transaction.json',
+    ), 'utf8'));
+    assert.strictEqual(transaction.status, 'completed');
+    assert.strictEqual(transaction.rollback.outcome, 'not_required');
+    assert.strictEqual(auditWriteFailed, true);
+    assert.strictEqual(cacheRefreshFailed, true);
+    assert.strictEqual(fs.existsSync(logPath), false);
+    process.stdout.write('ok - popular takeover keeps transaction success when cache refresh and audit writes fail\n');
+  } finally {
+    fs.openSync = openSync;
+    fs.readdirSync = readdirSync;
+    current.cleanup();
+  }
+}
+
+async function testPopularApplyProgressIsVisibleWhileItemRuns() {
+  const current = popularBatchFixture(['beta', 'gamma']);
+  let releaseBeta;
+  try {
+    const service = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+    });
+    const preview = await previewPopularBatch(service, ['beta', 'gamma']);
+    assert.strictEqual(service.popularApplyProgress(preview.plan_id).status, 'idle');
+    const holdBeta = new Promise(function wait(resolve) { releaseBeta = resolve; });
+    const materialize = current.updateSourceClient.materialize;
+    current.updateSourceClient.materialize = async function delayed(entry) {
+      if (entry.name === 'beta') await holdBeta;
+      return materialize(entry);
+    };
+    const applyPromise = service.applyPopularSkillSources({ plan_id: preview.plan_id, confirm: true });
+    let seen = service.popularApplyProgress(preview.plan_id);
+    for (let attempt = 0; attempt < 50 && !(seen.status === 'running' && seen.items[0] && seen.items[0].state === 'running'); attempt += 1) {
+      await new Promise(function pause(resolve) { setTimeout(resolve, 10); });
+      seen = service.popularApplyProgress(preview.plan_id);
+    }
+    assert.strictEqual(seen.status, 'running', JSON.stringify(seen));
+    assert.strictEqual(seen.plan_id, preview.plan_id);
+    assert.strictEqual(seen.current_name, 'beta');
+    assert.strictEqual(seen.total_count, 2);
+    assert.strictEqual(seen.done_count, 0);
+    assert.deepStrictEqual(seen.items.map(function state(item) { return item.state; }), ['running', 'queued']);
+    assert.strictEqual(service.popularApplyProgress('other-plan').status, 'idle');
+    releaseBeta();
+    releaseBeta = null;
+    const result = await applyPromise;
+    assert.strictEqual(result.status, 'completed');
+    const finished = service.popularApplyProgress(preview.plan_id);
+    assert.strictEqual(finished.status, 'completed');
+    assert.deepStrictEqual(finished.items.map(function state(item) { return item.state; }), ['succeeded', 'succeeded']);
+    process.stdout.write('ok - popular takeover exposes per-skill progress while a batch item is running\n');
+  } finally {
+    if (typeof releaseBeta === 'function') releaseBeta();
+    current.cleanup();
+  }
+}
+
+async function testPopularPreviewReportsSkippedItemsWithoutSecrets() {
+  const current = popularBatchFixture(['beta', 'gamma', 'zeta']);
+  const secret = 'preview-session-secret';
+  try {
+    const script = path.join(current.root, 'source-candidate-gamma', 'run.sh');
+    fs.writeFileSync(script, '#!/bin/sh\necho hi\n', 'utf8');
+    fs.chmodSync(script, 0o755);
+    const materialize = current.updateSourceClient.materialize;
+    current.updateSourceClient.materialize = async function failZeta(entry) {
+      if (entry.name === 'zeta') {
+        throw new Error('clone failed at ' + current.settings.homeDir + '; X-ASH-Session=' + secret);
+      }
+      return materialize(entry);
+    };
+    const service = ash.createUiService(current.settings, {
+      updateSourceClient: current.updateSourceClient,
+      skillsShSearchClient: current.skillsShSearchClient,
+      auditSecrets: [secret],
+    });
+    const discovery = await service.discoverPopularSkillSources({ limit: 100 });
+    const preview = await service.previewPopularSkillSources({
+      discovery_id: discovery.discovery_id,
+      names: ['beta', 'gamma', 'zeta'],
+    });
+    assert.strictEqual(preview.selected_count, 3);
+    assert.strictEqual(preview.ready_count, 1);
+    assert.strictEqual(preview.skipped_count, 2);
+    assert.deepStrictEqual(preview.ready.map(function name(item) { return item.name; }), ['beta']);
+    const skipped = preview.skipped.slice().sort(function byName(left, right) { return left.name.localeCompare(right.name); });
+    assert.strictEqual(skipped[0].name, 'gamma');
+    assert(skipped[0].reason.includes('可执行文件'), skipped[0].reason);
+    assert.strictEqual(skipped[1].name, 'zeta');
+    assert.strictEqual(skipped[1].reason.includes(current.settings.homeDir), false);
+    assert.strictEqual(skipped[1].reason.includes(secret), false);
+    assert(skipped[1].reason.includes('<HOME>'), skipped[1].reason);
+    assert(skipped[1].reason.includes('<REDACTED>'), skipped[1].reason);
+    process.stdout.write('ok - popular takeover preview reports skipped Skills and redacts secrets\n');
+  } finally {
+    current.cleanup();
+  }
+}
+
 async function testHttpServer() {
   const current = fixture();
   let running;
+  let openedSnapshotDirectory = null;
   try {
     running = await ash.startUiServer(current.settings, {
       port: 0,
@@ -507,6 +1120,7 @@ async function testHttpServer() {
         dateFactory: function fixedDate() { return new Date('2026-08-20T00:00:00.000Z'); },
         updateSourceClient: current.updateSourceClient,
         skillsShSearchClient: current.skillsShSearchClient,
+        openDirectory: function open(directory) { openedSnapshotDirectory = directory; },
       },
     });
     assert(running.url.indexOf('http://127.0.0.1:') === 0);
@@ -525,6 +1139,11 @@ async function testHttpServer() {
     assert.strictEqual(json(overviewResponse).library.path, current.library);
     assert.strictEqual(json(overviewResponse).source_insights.coverage_percent, 50);
     assert.strictEqual(json(overviewResponse).retention.action_count, 1);
+
+    const idleProgress = await request(running.url + 'api/updates/source/popular/progress');
+    assert.strictEqual(idleProgress.status, 200, idleProgress.text);
+    assert.strictEqual(json(idleProgress).status, 'idle');
+    assert.deepStrictEqual(json(idleProgress).items, []);
 
     const detailResponse = await request(running.url + 'api/skills/alpha');
     assert.strictEqual(detailResponse.status, 200);
@@ -546,16 +1165,41 @@ async function testHttpServer() {
     const forbiddenUpdate = await request(running.url + 'api/updates/check', { method: 'POST', body: {} });
     assert.strictEqual(forbiddenUpdate.status, 403);
     assert.strictEqual(json(forbiddenUpdate).error.code, 'SESSION_REQUIRED');
+    const forbiddenRemoval = await request(running.url + 'api/skills/removal/preview', {
+      method: 'POST', body: { name: 'alpha', library_id: ash.MANAGED_LIBRARY_ID },
+    });
+    assert.strictEqual(forbiddenRemoval.status, 403);
+    assert.strictEqual(json(forbiddenRemoval).error.code, 'SESSION_REQUIRED');
+    const forbiddenRemovalPurge = await request(running.url + 'api/skills/removal/purge/preview', {
+      method: 'POST', body: { transaction_id: 'unknown' },
+    });
+    assert.strictEqual(forbiddenRemovalPurge.status, 403);
+    assert.strictEqual(json(forbiddenRemovalPurge).error.code, 'SESSION_REQUIRED');
+    const forbiddenBulkRemovalPurge = await request(running.url + 'api/skills/removal/bulk-purge/preview', {
+      method: 'POST', body: {},
+    });
+    assert.strictEqual(forbiddenBulkRemovalPurge.status, 403);
+    assert.strictEqual(json(forbiddenBulkRemovalPurge).error.code, 'SESSION_REQUIRED');
     const forbiddenSource = await request(running.url + 'api/updates/source/preview', {
       method: 'POST', body: { name: 'beta', source_url: 'https://github.com/example/ui-skills.git', skill_path: 'skills/beta' },
     });
     assert.strictEqual(forbiddenSource.status, 403);
     assert.strictEqual(json(forbiddenSource).error.code, 'SESSION_REQUIRED');
+    const forbiddenSnapshotDirectory = await request(running.url + 'api/snapshots/open-directory', {
+      method: 'POST', body: {},
+    });
+    assert.strictEqual(forbiddenSnapshotDirectory.status, 403);
+    assert.strictEqual(json(forbiddenSnapshotDirectory).error.code, 'SESSION_REQUIRED');
     const forbiddenDiscovery = await request(running.url + 'api/updates/source/discover', {
       method: 'POST', body: { name: 'beta' },
     });
     assert.strictEqual(forbiddenDiscovery.status, 403);
     assert.strictEqual(json(forbiddenDiscovery).error.code, 'SESSION_REQUIRED');
+    const forbiddenPopularDiscovery = await request(running.url + 'api/updates/source/popular/discover', {
+      method: 'POST', body: { limit: 10 },
+    });
+    assert.strictEqual(forbiddenPopularDiscovery.status, 403);
+    assert.strictEqual(json(forbiddenPopularDiscovery).error.code, 'SESSION_REQUIRED');
 
     const headers = { 'X-ASH-Session': session };
     const individualUpdateCheck = await request(running.url + 'api/updates/check', {
@@ -620,6 +1264,20 @@ async function testHttpServer() {
     assert.strictEqual(discovery.candidates[0].skills_url, 'https://skills.sh/example/ui-skills/beta');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(discovery, 'plan_id'), false);
 
+    const popularDiscoveryResponse = await request(running.url + 'api/updates/source/popular/discover', {
+      method: 'POST', headers, body: { limit: 10 },
+    });
+    assert.strictEqual(popularDiscoveryResponse.status, 200, popularDiscoveryResponse.text);
+    const popularDiscovery = json(popularDiscoveryResponse);
+    assert.strictEqual(popularDiscovery.selected_count, 1);
+    const popularPreviewResponse = await request(running.url + 'api/updates/source/popular/preview', {
+      method: 'POST', headers, body: { discovery_id: popularDiscovery.discovery_id, names: ['beta'] },
+    });
+    assert.strictEqual(popularPreviewResponse.status, 200, popularPreviewResponse.text);
+    const popularPreview = json(popularPreviewResponse);
+    assert(popularPreview.plan_id);
+    assert.strictEqual(popularPreview.ready_count, 1);
+
     const sourcePreviewResponse = await request(running.url + 'api/updates/source/preview', {
       method: 'POST', headers, body: { name: 'beta', skills_url: 'https://skills.sh/example/ui-skills/beta' },
     });
@@ -636,6 +1294,31 @@ async function testHttpServer() {
     assert.strictEqual(json(sourceAppliedResponse).skill.update.status, 'up-to-date');
     assert.strictEqual(json(sourceAppliedResponse).skill.update.source_origin.label, 'skills.sh 接管');
     assert.strictEqual(json(sourceAppliedResponse).skill.update.source_links[0].url, 'https://skills.sh/example/ui-skills/beta');
+    const sameSourceResponse = await request(running.url + 'api/updates/source/preview', {
+      method: 'POST', headers, body: { name: 'beta', skills_url: 'https://skills.sh/example/ui-skills/beta' },
+    });
+    assert.strictEqual(sameSourceResponse.status, 400, sameSourceResponse.text);
+    assert.strictEqual(json(sameSourceResponse).error.code, 'INVALID_UPDATE_SOURCE');
+    const retargetPreviewResponse = await request(running.url + 'api/updates/source/preview', {
+      method: 'POST', headers, body: { name: 'beta', skills_url: 'https://skills.sh/second/ui-skills/beta' },
+    });
+    assert.strictEqual(retargetPreviewResponse.status, 200, retargetPreviewResponse.text);
+    const retargetPreview = json(retargetPreviewResponse);
+    assert.strictEqual(retargetPreview.operation, 'retarget-source');
+    const retargetAppliedResponse = await request(running.url + 'api/updates/source/apply', {
+      method: 'POST', headers, body: { plan_id: retargetPreview.plan_id, confirm: true },
+    });
+    assert.strictEqual(retargetAppliedResponse.status, 200, retargetAppliedResponse.text);
+    assert.strictEqual(json(retargetAppliedResponse).status, 'source_retargeted');
+    assert.strictEqual(json(retargetAppliedResponse).skill.update.source_links[0].url, 'https://skills.sh/second/ui-skills/beta');
+    const retargetRollbackPreviewResponse = await request(running.url + 'api/updates/rollback/preview', {
+      method: 'POST', headers, body: {},
+    });
+    const retargetRollbackAppliedResponse = await request(running.url + 'api/updates/rollback/apply', {
+      method: 'POST', headers, body: { rollback_id: json(retargetRollbackPreviewResponse).rollback_id, confirm: true },
+    });
+    assert.strictEqual(retargetRollbackAppliedResponse.status, 200, retargetRollbackAppliedResponse.text);
+    assert.strictEqual(json(retargetRollbackAppliedResponse).skill.update.source_links[0].url, 'https://skills.sh/example/ui-skills/beta');
     const reusedSourcePlan = await request(running.url + 'api/updates/source/apply', {
       method: 'POST', headers, body: { plan_id: sourcePreview.plan_id, confirm: true },
     });
@@ -740,11 +1423,94 @@ async function testHttpServer() {
     });
     assert.strictEqual(snapshotApplied.status, 200, snapshotApplied.text);
     const snapshot = json(snapshotApplied).snapshot;
+    const openedSnapshotDirectoryResponse = await request(running.url + 'api/snapshots/open-directory', {
+      method: 'POST', headers, body: {},
+    });
+    assert.strictEqual(openedSnapshotDirectoryResponse.status, 200, openedSnapshotDirectoryResponse.text);
+    assert.strictEqual(json(openedSnapshotDirectoryResponse).status, 'opened');
+    assert.strictEqual(openedSnapshotDirectory, current.settings.stateDir + '/snapshots');
     const verified = await request(running.url + 'api/snapshots/verify', {
       method: 'POST', headers, body: { snapshot: snapshot.snapshot_id },
     });
     assert.strictEqual(verified.status, 200, verified.text);
     assert.strictEqual(json(verified).verification.ok, true);
+
+    const removalPreviewResponse = await request(running.url + 'api/skills/removal/preview', {
+      method: 'POST', headers, body: { name: 'alpha', library_id: ash.MANAGED_LIBRARY_ID },
+    });
+    assert.strictEqual(removalPreviewResponse.status, 200, removalPreviewResponse.text);
+    const removalPlan = json(removalPreviewResponse);
+    assert.strictEqual(removalPlan.ownership, 'installer-lock');
+    assert(removalPlan.actions.some(function lockAction(item) { return item.kind === 'installer_lock_entry_remove'; }));
+    const removalAppliedResponse = await request(running.url + 'api/skills/removal/apply', {
+      method: 'POST', headers, body: { plan_id: removalPlan.plan_id, confirm: true, confirmation_name: 'alpha' },
+    });
+    assert.strictEqual(removalAppliedResponse.status, 200, removalAppliedResponse.text);
+    assert.strictEqual(json(removalAppliedResponse).status, 'removed');
+    assert.strictEqual(fs.existsSync(path.join(current.library, 'alpha')), false);
+    assert.strictEqual(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.alpha, undefined);
+    const removalRollbackPreviewResponse = await request(running.url + 'api/skills/removal/rollback/preview', {
+      method: 'POST', headers, body: {},
+    });
+    assert.strictEqual(removalRollbackPreviewResponse.status, 200, removalRollbackPreviewResponse.text);
+    const removalRollbackAppliedResponse = await request(running.url + 'api/skills/removal/rollback/apply', {
+      method: 'POST', headers, body: { rollback_id: json(removalRollbackPreviewResponse).rollback_id, confirm: true },
+    });
+    assert.strictEqual(removalRollbackAppliedResponse.status, 200, removalRollbackAppliedResponse.text);
+    assert.strictEqual(json(removalRollbackAppliedResponse).status, 'restored');
+    assert(fs.existsSync(path.join(current.library, 'alpha', 'SKILL.md')));
+    assert(JSON.parse(fs.readFileSync(current.lockPath, 'utf8')).skills.alpha);
+
+    const purgeRemovalPreviewResponse = await request(running.url + 'api/skills/removal/preview', {
+      method: 'POST', headers, body: { name: 'delta', library_id: ash.MANAGED_LIBRARY_ID },
+    });
+    const purgeRemovalAppliedResponse = await request(running.url + 'api/skills/removal/apply', {
+      method: 'POST', headers, body: { plan_id: json(purgeRemovalPreviewResponse).plan_id, confirm: true, confirmation_name: 'delta' },
+    });
+    assert.strictEqual(purgeRemovalAppliedResponse.status, 200, purgeRemovalAppliedResponse.text);
+    const removalOverviewResponse = await request(running.url + 'api/overview');
+    const deltaRemoval = json(removalOverviewResponse).removals.find(function delta(item) { return item.name === 'delta'; });
+    assert(deltaRemoval);
+    const purgePreviewResponse = await request(running.url + 'api/skills/removal/purge/preview', {
+      method: 'POST', headers, body: { transaction_id: deltaRemoval.transaction_id },
+    });
+    assert.strictEqual(purgePreviewResponse.status, 200, purgePreviewResponse.text);
+    assert.strictEqual(json(purgePreviewResponse).confirmation_name, 'delta');
+    const purgeAppliedResponse = await request(running.url + 'api/skills/removal/purge/apply', {
+      method: 'POST', headers, body: { plan_id: json(purgePreviewResponse).plan_id, confirm: true, confirmation_name: 'delta' },
+    });
+    assert.strictEqual(purgeAppliedResponse.status, 200, purgeAppliedResponse.text);
+    assert.strictEqual(json(purgeAppliedResponse).status, 'purged');
+    assert.strictEqual(fs.existsSync(path.join(current.settings.stateDir, 'removals', deltaRemoval.transaction_id)), false);
+    assert.strictEqual(fs.existsSync(path.join(current.library, 'delta')), false);
+
+    ['http-bulk-one', 'http-bulk-two'].forEach(function addBulkSkill(name) {
+      writeSkill(path.join(current.library, name), name, 'Disposable HTTP bulk purge probe.');
+    });
+    for (const name of ['http-bulk-one', 'http-bulk-two']) {
+      const previewResponse = await request(running.url + 'api/skills/removal/preview', {
+        method: 'POST', headers, body: { name, library_id: ash.MANAGED_LIBRARY_ID },
+      });
+      const appliedResponse = await request(running.url + 'api/skills/removal/apply', {
+        method: 'POST', headers, body: { plan_id: json(previewResponse).plan_id, confirm: true, confirmation_name: name },
+      });
+      assert.strictEqual(appliedResponse.status, 200, appliedResponse.text);
+    }
+    const bulkPurgePreviewResponse = await request(running.url + 'api/skills/removal/bulk-purge/preview', {
+      method: 'POST', headers, body: {},
+    });
+    assert.strictEqual(bulkPurgePreviewResponse.status, 200, bulkPurgePreviewResponse.text);
+    assert.strictEqual(json(bulkPurgePreviewResponse).confirmation_text, '永久删除全部 2 个 Skill');
+    const bulkPurgeAppliedResponse = await request(running.url + 'api/skills/removal/bulk-purge/apply', {
+      method: 'POST', headers, body: {
+        plan_id: json(bulkPurgePreviewResponse).plan_id,
+        confirm: true,
+        confirmation_text: json(bulkPurgePreviewResponse).confirmation_text,
+      },
+    });
+    assert.strictEqual(bulkPurgeAppliedResponse.status, 200, bulkPurgeAppliedResponse.text);
+    assert.strictEqual(json(bulkPurgeAppliedResponse).status, 'purged');
+    assert.strictEqual(json(bulkPurgeAppliedResponse).deleted_count, 2);
     process.stdout.write('ok - localhost UI serves assets and guards write APIs with a page session\n');
   } finally {
     if (running) await running.close();
@@ -754,8 +1520,16 @@ async function testHttpServer() {
 
 async function main() {
   await testServiceSafety();
+  await testSingleSourceFailureRedactsThrownUiError();
+  await testPopularBatchKeepsSequentialSuccessesAndWritesLogs();
+  await testPopularBatchReturnsPartialAndContinues();
+  await testPopularBatchClassifiesPreparationFailuresAndContinues();
+  await testPopularBatchAbortsWhenAutomaticRollbackFails();
+  await testPopularBatchKeepsTransactionSuccessWhenPostWorkFails();
+  await testPopularApplyProgressIsVisibleWhileItemRuns();
+  await testPopularPreviewReportsSkippedItemsWithoutSecrets();
   await testHttpServer();
-  process.stdout.write('\n2/2 UI tests passed\n');
+  process.stdout.write('\n10/10 UI tests passed\n');
 }
 
 main().catch(function failed(error) {

@@ -8,9 +8,10 @@
         "askill": "bin/ash-wrapper.js"
     },
     "scripts": {
-        "test": "node tests/control-plane.test.js && node tests/update.test.js && node tests/retention.test.js && node tests/status.test.js && node tests/skills-sh.test.js && node tests/ui.test.js",
+        "test": "node tests/control-plane.test.js && node tests/update.test.js && node tests/removal.test.js && node tests/retention.test.js && node tests/status.test.js && node tests/skills-sh.test.js && node tests/ui.test.js",
         "test:ui": "node tests/ui.test.js",
         "test:update": "node tests/update.test.js",
+        "test:removal": "node tests/removal.test.js",
         "test:retention": "node tests/retention.test.js",
         "test:status": "node tests/status.test.js",
         "test:skills-sh": "node tests/skills-sh.test.js"

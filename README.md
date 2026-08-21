@@ -121,7 +121,14 @@ Doctor findings, repair plans, and the latest rollback transaction. It can also:
 - create standard Skill scaffolds in the managed user library;
 - update a managed Skill description through a transactional, rollback-safe write;
 - package any selected Skill into the configured package output;
+- preview and remove a managed Skill from each row: real directories enter the
+  ASH recovery area, symlinks lose only the managed entry without touching their
+  source, and installer-lock state changes in the same transaction; Maintenance
+  lists every recoverable entry for per-item restore or previewed, name-confirmed
+  permanent deletion, plus a previewed delete-all action gated by an exact typed
+  phrase containing the current recovery count;
 - create, verify, and additively restore page-managed user-library snapshots;
+- open the local snapshot directory directly from the page without applying or deleting anything;
 - show source coverage, unavailable sources, missing baselines, and stale provenance;
 - present seven concise update states while keeping errors, warnings, and info as
   an independent health dimension;
@@ -130,8 +137,12 @@ Doctor findings, repair plans, and the latest rollback transaction. It can also:
 - discover exact-name skills.sh candidates for an untracked Skill, require a
   human source choice, then take it over from the selected exact URL (or a GitHub
   repository and path), or safely rebuild a comparable legacy baseline;
+- propose a one-confirmation batch takeover for clearly dominant skills.sh
+  candidates while skipping ambiguous, unavailable, or executable-risk entries;
 - distinguish the skills.sh takeover channel from the GitHub code upstream, with
   safe links to the catalog page, repository, and exact `SKILL.md` source;
+- retarget a source-locked Skill to a different GitHub upstream after previewing
+  the file diff, then roll that change back from the last update transaction;
 - check source-locked GitHub Skills for updates, preview file-level changes,
   update one managed Skill transactionally, and roll the update back safely.
 
@@ -142,9 +153,9 @@ previous directory remains available to the guarded update rollback.
 
 Source statistics are derived from live user-library and installer-lock state;
 records older than 180 days are reported but never modified. Transaction cleanup
-is irreversible and confirmation-gated: repair and update histories retain their
-newest 10 entries or anything from the last 30 days, and the currently valid
-rollback for each type is always protected.
+is irreversible and confirmation-gated: repair, update, and removal histories
+retain their newest 10 entries or anything from the last 30 days, and the
+currently valid rollback or restore for each type is always protected.
 
 The managed library still follows `library.path` or `ASH_SKILLS_DIR`. Additional
 scan roots are stored in `~/.agents/.ash/state/control-plane/ui-preferences.json` and are
@@ -159,9 +170,12 @@ the same `lib/control-plane` modules. Repair and rollback remain preview-first:
 the page requires explicit confirmation, the server rescans and compares a
 one-time plan digest, and the existing transaction and hash preflight stays
 authoritative. The server refuses non-loopback binding and does not enable CORS.
-Repository sync, untracked third-party installation, raw instruction editing, deletion, and
-uninstall remain outside the page because they cross network or ownership
-boundaries or can destroy user content.
+Repository sync, untracked third-party installation, raw instruction editing,
+and bypassing recovery to permanently delete the active user library remain
+outside the page. Page removal is restricted to the managed user library and
+always enters a recoverable transaction first; only recovery copies can then be
+permanently deleted through a separate preview and typed confirmation.
+Observe-only roots can only be removed as whole scan references.
 
 ## Maintenance priority
 

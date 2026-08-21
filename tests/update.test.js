@@ -117,6 +117,9 @@ function fixture() {
     'upstream.txt': 'managed upstream content\n',
   });
   const hashlessCandidate = writeSkill(path.join(root, 'candidate-hashless'), 'hashless', 'Hashless installed Skill.');
+  const alphaOther = writeSkill(path.join(root, 'candidate-alpha-other'), 'alpha', 'Alpha from another upstream.', {
+    'other.txt': 'from-other-upstream\n',
+  });
   let inspectCalls = 0;
   let materializeCalls = 0;
   let resolveCalls = 0;
@@ -139,6 +142,9 @@ function fixture() {
       }
       if (entry.name === 'hashless') {
         return { path: hashlessCandidate, revision: 'hashless-candidate-commit', folderHash: '5'.repeat(40), cleanup: function cleanup() {} };
+      }
+      if (entry.name === 'alpha' && /other-skills/.test(String(entry.sourceUrl || ''))) {
+        return { path: alphaOther, revision: 'alpha-other-commit', folderHash: '9'.repeat(40), cleanup: function cleanup() {} };
       }
       return { path: candidate, revision: 'candidate-commit', folderHash: '2'.repeat(40), cleanup: function cleanup() {} };
     },
@@ -284,6 +290,16 @@ test('applies one Skill update transaction and rolls it back safely', async func
     }, { sourceClient: current.sourceClient });
     const transaction = await ash.applySkillUpdate(current.settings, preview, { sourceClient: current.sourceClient });
     assert(fs.existsSync(transaction));
+    const completedTransaction = JSON.parse(fs.readFileSync(transaction, 'utf8'));
+    assert.strictEqual(completedTransaction.version, 1);
+    assert.deepStrictEqual(completedTransaction.rollback, {
+      initiator: null,
+      reason: null,
+      outcome: 'not_required',
+      started_at: null,
+      completed_at: null,
+      failed_at: null,
+    });
     assert(fs.readFileSync(path.join(current.alpha, 'SKILL.md'), 'utf8').includes('Alpha latest version.'));
     assert(fs.existsSync(path.join(current.alpha, 'new.txt')));
     assert.strictEqual(fs.existsSync(path.join(current.alpha, 'old.txt')), false);
@@ -296,11 +312,71 @@ test('applies one Skill update transaction and rolls it back safely', async func
     const rollback = ash.previewSkillUpdateRollback(current.settings, 'latest');
     assert.strictEqual(rollback.name, 'alpha');
     ash.applySkillUpdateRollback(current.settings, rollback.transaction_id);
+    const rolledBackTransaction = JSON.parse(fs.readFileSync(transaction, 'utf8'));
+    assert.strictEqual(rolledBackTransaction.version, 1);
+    assert.strictEqual(rolledBackTransaction.rollback.initiator, 'manual');
+    assert.strictEqual(rolledBackTransaction.rollback.reason, 'manual_request');
+    assert.strictEqual(rolledBackTransaction.rollback.outcome, 'completed');
+    assert(rolledBackTransaction.rollback.started_at);
+    assert(rolledBackTransaction.rollback.completed_at);
+    assert.strictEqual(rolledBackTransaction.rollback.failed_at, null);
     assert(fs.readFileSync(path.join(current.alpha, 'SKILL.md'), 'utf8').includes('Alpha installed version.'));
     assert(fs.existsSync(path.join(current.alpha, 'old.txt')));
     assert(fs.existsSync(path.join(current.alpha, 'node_modules', 'local-cache.txt')));
     assert.strictEqual(fs.existsSync(path.join(current.alpha, 'new.txt')), false);
     assert.strictEqual(fs.readFileSync(current.agentsLock, 'utf8'), originalLock);
+  });
+});
+
+test('rebases the final lock write so an unrelated concurrent entry survives apply and rollback', async function run() {
+  await withFixture(async function inspect(current) {
+    const preview = await ash.buildSkillUpdatePreview(current.settings, {
+      name: 'alpha', latest_hash: '2'.repeat(40), latest_revision: 'candidate-commit',
+    }, { sourceClient: current.sourceClient });
+    const renameSync = fs.renameSync;
+    let injected = false;
+    let concurrentLockContent = null;
+    try {
+      fs.renameSync = function injectAfterPreparation(source, destination) {
+        const result = renameSync(source, destination);
+        if (!injected && path.basename(destination) === 'transaction.json') {
+          const transaction = JSON.parse(fs.readFileSync(destination, 'utf8'));
+          if (transaction.status === 'prepared') {
+            const concurrentLock = JSON.parse(fs.readFileSync(current.agentsLock, 'utf8'));
+            concurrentLock.skills.concurrent = {
+              source: 'example/concurrent',
+              sourceType: 'github',
+              sourceUrl: 'https://github.com/example/concurrent.git',
+              skillPath: 'skills/concurrent/SKILL.md',
+              skillFolderHash: '9'.repeat(40),
+              installedAt: '2026-08-21T00:00:00.000Z',
+              updatedAt: '2026-08-21T00:00:00.000Z',
+            };
+            concurrentLockContent = JSON.stringify(concurrentLock, null, 2) + '\n';
+            fs.writeFileSync(current.agentsLock, concurrentLockContent, 'utf8');
+            injected = true;
+          }
+        }
+        return result;
+      };
+      const transactionFile = await ash.applySkillUpdate(current.settings, preview, { sourceClient: current.sourceClient });
+      const transaction = JSON.parse(fs.readFileSync(transactionFile, 'utf8'));
+      const appliedLock = JSON.parse(fs.readFileSync(current.agentsLock, 'utf8'));
+      assert.strictEqual(injected, true);
+      assert.strictEqual(appliedLock.skills.concurrent.skillFolderHash, '9'.repeat(40));
+      assert.strictEqual(appliedLock.skills.alpha.skillFolderHash, '2'.repeat(40));
+      assert.strictEqual(fs.readFileSync(transaction.lock_backup, 'utf8'), concurrentLockContent);
+      assert.strictEqual(transaction.before_lock_sha256, ash.sha256(Buffer.from(concurrentLockContent, 'utf8')));
+      assert.strictEqual(transaction.lock_written, true);
+      assert.strictEqual(transaction.written_lock_sha256, transaction.after_lock_sha256);
+
+      ash.applySkillUpdateRollback(current.settings, transaction.id);
+      const rolledBackLock = JSON.parse(fs.readFileSync(current.agentsLock, 'utf8'));
+      assert.strictEqual(rolledBackLock.skills.concurrent.skillFolderHash, '9'.repeat(40));
+      assert.strictEqual(rolledBackLock.skills.alpha.skillFolderHash, '1'.repeat(40));
+    } finally {
+      fs.renameSync = renameSync;
+    }
   });
 });
 
@@ -371,9 +447,70 @@ test('takes over identical unmanaged content from an exact skills.sh URL with a 
     const classified = ash.classifyUserSkillUpdates(current.settings).skills.find(function manual(item) { return item.name === 'manual'; });
     assert.strictEqual(classified.skills_url, undefined);
     assert(current.resolveCalls() >= 2);
+    const legacyV1Transaction = JSON.parse(fs.readFileSync(transaction, 'utf8'));
+    delete legacyV1Transaction.rollback;
+    fs.writeFileSync(transaction, JSON.stringify(legacyV1Transaction, null, 2) + '\n', 'utf8');
     const rollback = ash.previewSkillUpdateRollback(current.settings, 'latest');
     ash.applySkillUpdateRollback(current.settings, rollback.transaction_id);
+    const migratedRollback = JSON.parse(fs.readFileSync(transaction, 'utf8')).rollback;
+    assert.strictEqual(migratedRollback.outcome, 'completed');
+    assert.strictEqual(migratedRollback.initiator, 'manual');
     assert.strictEqual(JSON.parse(fs.readFileSync(current.agentsLock, 'utf8')).skills.manual, undefined);
+  });
+});
+
+test('retargets a managed Skill to a different GitHub upstream and rolls back the previous source', async function run() {
+  await withFixture(async function inspect(current) {
+    const originalLock = fs.readFileSync(current.agentsLock, 'utf8');
+    const originalSkill = fs.readFileSync(path.join(current.library, 'alpha', 'SKILL.md'), 'utf8');
+    await assert.rejects(
+      ash.buildSkillSourcePreview(current.settings, { name: 'alpha' }, { sourceClient: current.sourceClient }),
+      /requires a new skills\.sh URL or GitHub source/,
+    );
+    await assert.rejects(
+      ash.buildSkillSourcePreview(current.settings, {
+        name: 'alpha',
+        source_url: 'https://github.com/example/skills.git',
+        skill_path: 'skills/alpha/SKILL.md',
+      }, { sourceClient: current.sourceClient }),
+      /same as the current upstream/,
+    );
+    await assert.rejects(
+      ash.buildSkillSourcePreview(current.settings, {
+        name: 'linked',
+        source_url: 'https://github.com/example/other-skills.git',
+        skill_path: 'skills/linked',
+      }, { sourceClient: current.sourceClient }),
+      /does not need an update source or baseline/,
+    );
+    const preview = await ash.buildSkillSourcePreview(current.settings, {
+      name: 'alpha',
+      source_url: 'https://github.com/example/other-skills.git',
+      skill_path: 'skills/alpha',
+    }, { sourceClient: current.sourceClient });
+    assert.strictEqual(preview.operation, 'retarget-source');
+    assert.strictEqual(preview.previous_source, 'example/skills');
+    assert.strictEqual(preview.previous_source_url, 'https://github.com/example/skills.git');
+    assert.strictEqual(preview.source, 'example/other-skills');
+    assert.strictEqual(preview.source_url, 'https://github.com/example/other-skills.git');
+    assert.strictEqual(preview.replace_content, true);
+    assert(preview.diff.added.some(function other(item) { return item.path === 'other.txt'; }));
+
+    const transaction = await ash.applySkillSource(current.settings, preview, { sourceClient: current.sourceClient });
+    const lock = JSON.parse(fs.readFileSync(current.agentsLock, 'utf8'));
+    assert.strictEqual(lock.skills.alpha.source, 'example/other-skills');
+    assert.strictEqual(lock.skills.alpha.sourceUrl, 'https://github.com/example/other-skills.git');
+    assert.strictEqual(lock.skills.alpha.skillFolderHash, '9'.repeat(40));
+    assert(fs.readFileSync(path.join(current.library, 'alpha', 'SKILL.md'), 'utf8').includes('Alpha from another upstream.'));
+    assert(fs.existsSync(path.join(current.library, 'alpha', 'other.txt')));
+    assert.strictEqual(fs.readFileSync(path.join(current.library, 'alpha', '.env'), 'utf8'), 'TOKEN=local-secret\n');
+    assert.strictEqual(JSON.parse(fs.readFileSync(transaction, 'utf8')).operation, 'retarget-source');
+    const rollbackPreview = ash.previewSkillUpdateRollback(current.settings, 'latest');
+    assert(rollbackPreview.description.includes('PREVIOUS UPDATE SOURCE'));
+    ash.applySkillUpdateRollback(current.settings, rollbackPreview.transaction_id);
+    assert.strictEqual(fs.readFileSync(path.join(current.library, 'alpha', 'SKILL.md'), 'utf8'), originalSkill);
+    assert.strictEqual(fs.existsSync(path.join(current.library, 'alpha', 'other.txt')), false);
+    assert.strictEqual(fs.readFileSync(current.agentsLock, 'utf8'), originalLock);
   });
 });
 

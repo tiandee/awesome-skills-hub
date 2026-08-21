@@ -107,14 +107,28 @@
           <div class="library-filters" id="library-filters" role="group" aria-label="扫描来源过滤"></div>
           <div class="library-actions">
             <button class="secondary-button" type="button" data-action="check-updates">检查更新</button>
-            <button class="secondary-button" type="button" data-action="open-add-root">添加扫描目录</button>
+            <button class="secondary-button" type="button" data-action="open-scan-sources">Skill 扫描</button>
+            <button class="secondary-button" type="button" data-action="open-popular-takeover">热门接管</button>
             <button class="primary-button" type="button" data-action="open-create-skill">创建 Skill</button>
           </div>
         </div>
         <div class="library-layout">
           <article class="panel skill-list-panel">
             <div class="table-head">
-              <span>名称</span><span class="size-heading">体量</span><span>更新</span><span>健康</span>
+              <button class="table-head-sort" id="skill-sort-title" type="button" data-sort="name" aria-pressed="true" aria-label="按标题排序（升序）">
+                <span>名称</span>
+                <span class="sort-indicator" id="skill-sort-title-indicator" aria-hidden="true">↑</span>
+              </button>
+              <button class="table-head-sort size-heading" id="skill-sort-size" type="button" data-sort="size" aria-pressed="false" aria-label="按体量排序">
+                <span>体量</span>
+                <span class="sort-indicator" id="skill-sort-size-indicator" aria-hidden="true"></span>
+              </button>
+              <button class="table-head-sort" id="skill-sort-state" type="button" data-sort="state" aria-pressed="false" aria-label="按状态排序">
+                <span>状态</span>
+                <span class="sort-indicator" id="skill-sort-state-indicator" aria-hidden="true"></span>
+              </button>
+              <span>健康</span>
+              <span class="actions-heading">操作</span>
             </div>
             <div class="skill-list" id="skill-list"></div>
           </article>
@@ -155,6 +169,7 @@
         <div class="maintenance-grid">
           <article class="panel action-card update-card" id="update-card"></article>
           <article class="panel action-card" id="update-rollback-card"></article>
+          <article class="panel action-card removal-card" id="removal-rollback-card"></article>
           <article class="panel action-card" id="repair-card"></article>
           <article class="panel action-card" id="rollback-card"></article>
           <article class="panel action-card retention-card" id="retention-card"></article>
@@ -162,7 +177,7 @@
         </div>
         <article class="boundary-note">
           <span>WRITE BOUNDARY</span>
-          <p>Update 可关联来源、重建基线并更新受管用户 Skill；Repair 只维护 Codex 创建引导；事务清理只删除预览中列出的历史目录。自定义扫描目录永远只读。所有写操作都要求预览、确认和状态重检。</p>
+          <p>Update 可关联来源、重建基线并更新受管用户 Skill；Remove 会把 Skill 或软链接移入可恢复事务；Repair 只维护 Codex 创建引导。自定义扫描目录永远只读。所有写操作都要求预览、确认和状态重检。</p>
         </article>
       </section>
     </main>
@@ -190,14 +205,48 @@
       <span class="eyebrow" id="modal-eyebrow">REVIEW REQUIRED</span>
       <h2 id="modal-title">确认操作</h2>
       <p id="modal-description"></p>
+      <p id="modal-apply-progress" class="modal-apply-progress" hidden aria-live="polite"></p>
       <div class="modal-actions-list" id="modal-actions"></div>
-      <label class="confirmation-check">
+      <label class="confirmation-check" id="modal-confirm-check-field">
         <input id="modal-confirm-check" type="checkbox">
         <span>我已经核对上述目标，并同意执行本次操作。</span>
+      </label>
+      <label class="confirmation-name" id="modal-confirm-name-field" hidden>
+        <span>输入 <code id="modal-confirm-name-value"></code> 以确认</span>
+        <input id="modal-confirm-name" type="text" autocomplete="off" spellcheck="false">
       </label>
       <div class="modal-buttons">
         <button class="secondary-button" id="modal-cancel" type="button">取消</button>
         <button class="danger-button" id="modal-apply" type="button" disabled>确认执行</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="scan-modal" hidden>
+    <section class="confirmation-modal scan-modal" role="dialog" aria-modal="true" aria-labelledby="scan-title" aria-describedby="scan-description">
+      <button class="modal-close" id="scan-close" type="button" aria-label="关闭">×</button>
+      <span class="eyebrow">SCAN SOURCES / READ ONLY</span>
+      <h2 id="scan-title">Skill 扫描</h2>
+      <p id="scan-description">管理 Skill 库的扫描目录。用户库可写，自定义扫描目录只读。</p>
+      <div class="scan-sources-list" id="scan-sources-list"></div>
+      <div class="modal-buttons">
+        <button class="secondary-button" id="scan-cancel" type="button">关闭</button>
+        <button class="primary-button" id="scan-add-root" type="button">添加扫描目录</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="popular-modal" hidden>
+    <section class="confirmation-modal popular-modal" role="dialog" aria-modal="true" aria-labelledby="popular-title" aria-describedby="popular-description">
+      <button class="modal-close" id="popular-close" type="button" aria-label="关闭">×</button>
+      <span class="eyebrow">POPULAR SOURCES / REVIEW FIRST</span>
+      <h2 id="popular-title">按热度批量接管</h2>
+      <p id="popular-description">只自动选择安装量明显领先的精确同名候选；歧义来源、无匹配和不可用来源会跳过。不会按名称直接覆盖。</p>
+      <div id="popular-summary" class="popular-summary" aria-live="polite"></div>
+      <div id="popular-proposals" class="popular-proposals"></div>
+      <div class="modal-buttons">
+        <button class="secondary-button" id="popular-cancel" type="button">取消</button>
+        <button class="primary-button" id="popular-preview" type="button" disabled>生成批量预览</button>
       </div>
     </section>
   </div>

@@ -21,7 +21,7 @@ function removeTree(target) {
 
 function writeTransaction(settings, type, id, createdAt, options) {
   const opts = options || {};
-  const directory = path.join(settings.stateDir, type === 'repair' ? 'transactions' : 'updates', id);
+  const directory = path.join(settings.stateDir, type === 'repair' ? 'transactions' : type === 'removal' ? 'removals' : 'updates', id);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const payload = type === 'repair'
     ? {
@@ -32,7 +32,16 @@ function writeTransaction(settings, type, id, createdAt, options) {
       created_at: createdAt,
       operations: [{ kind: 'file_write', scope: opts.operationScope || 'codex-guidance', path: path.join(settings.homeDir, '.codex', 'AGENTS.md') }],
     }
-    : {
+    : type === 'removal'
+      ? {
+        version: opts.version || 1,
+        id,
+        status: opts.status || 'completed',
+        created_at: createdAt,
+        name: opts.name || 'sample',
+        operation: 'remove-skill',
+      }
+      : {
       version: opts.version || 1,
       id,
       status: opts.status || 'completed',
@@ -104,6 +113,23 @@ test('retention validates policy bounds', function run() {
   try {
     assert.throws(function invalidCount() { ash.buildRetentionPlan(current.settings, { keepCount: 0 }); }, /keepCount/);
     assert.throws(function invalidDays() { ash.buildRetentionPlan(current.settings, { maxAgeDays: 1001 }); }, /maxAgeDays/);
+  } finally { current.cleanup(); }
+});
+
+test('retention protects the latest restorable removal and can prune older restored removals', function run() {
+  const current = fixture();
+  try {
+    writeTransaction(current.settings, 'removal', 'removal-protected', '2026-01-01T00:00:00.000Z', { backup: 'recoverable' });
+    writeTransaction(current.settings, 'removal', 'removal-restored', '2025-01-01T00:00:00.000Z', { status: 'restored' });
+    const protectedIds = { repair: null, update: null, removal: 'removal-protected' };
+    const plan = ash.buildRetentionPlan(current.settings, {
+      now: new Date('2026-08-20T00:00:00.000Z'), keepCount: 1, maxAgeDays: 30, protectedIds,
+    });
+    assert.deepStrictEqual(plan.actions.map(function id(action) { return action.id; }), ['removal-restored']);
+    assert(plan.records.find(function protectedRemoval(record) { return record.id === 'removal-protected'; }).protected);
+    ash.applyRetentionPlan(current.settings, plan, { protectedIds });
+    assert.strictEqual(fs.existsSync(path.join(current.settings.stateDir, 'removals', 'removal-protected')), true);
+    assert.strictEqual(fs.existsSync(path.join(current.settings.stateDir, 'removals', 'removal-restored')), false);
   } finally { current.cleanup(); }
 });
 
